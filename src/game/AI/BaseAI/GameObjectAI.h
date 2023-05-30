@@ -49,10 +49,9 @@ class GameObjectAI
 
         /**
         * Called when the GO has its state changed in GameObject::SetLootState (whatever the reason is)
-        * LootState to which the GO is changed to is accessible in the GameObjectAI through GetLootState()
-        * User can be nullptr
+        * No params as LootState to which the GO is changed to is accessible in the GameObjectAI through GetLootState()
         */
-        virtual void OnLootStateChange(Unit* /*user*/) {}
+        virtual void OnLootStateChange() {}
 
         /*
         * Called when a GO appears in the world to normal observers
@@ -73,11 +72,6 @@ class GameObjectAI
          * Enables handling of GO Use by all units
          */
         virtual void OnUse(Unit* /*user*/, SpellEntry const* /*spellInfo*/);
-
-        /*
-         * Notifies AI on object heartbeat
-         */
-        virtual void OnHeartbeat() {}
 
     protected:
         GameObject* m_go;

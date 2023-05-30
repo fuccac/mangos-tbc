@@ -22,7 +22,7 @@
 #include "Platform/Define.h"
 #include "Dynamic/FactoryHolder.h"
 #include "MotionGenerators/MotionMaster.h"
-#include "Util/Timer.h"
+#include "Timer.h"
 #include "Globals/SharedDefines.h"
 
 class Unit;

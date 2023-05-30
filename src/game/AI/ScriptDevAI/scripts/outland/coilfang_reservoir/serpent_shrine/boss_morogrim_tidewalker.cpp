@@ -108,7 +108,7 @@ struct boss_morogrim_tidewalkerAI : public CombatAI
         AddCombatAction(MOROGRIM_TIDAL_WAVE, 10000, 15000);
         AddCombatAction(MOROGRIM_WATERY_GRAVE, 30000u);
         AddCombatAction(MOROGRIM_WATER_GLOBULES, true);
-        m_creature->GetCombatManager().SetLeashingCheck([](Unit*, float x, float /*y*/, float /*z*/)
+        m_creature->GetCombatManager().SetLeashingCheck([](Unit*, float x, float y, float z)
         {
             return x < 304.12f || x > 457.35f;
         });
@@ -240,7 +240,7 @@ struct boss_morogrim_tidewalkerAI : public CombatAI
     }
 };
 
-struct mob_water_globuleAI : public ScriptedAI
+struct mob_water_globuleAI : public ScriptedAI, public TimerManager
 {
     mob_water_globuleAI(Creature* creature) : ScriptedAI(creature), m_initialAggro(false)
     {
@@ -289,7 +289,8 @@ struct mob_water_globuleAI : public ScriptedAI
 
     void UpdateAI(const uint32 diff) override
     {
-        ScriptedAI::UpdateAI(diff);
+        UpdateTimers(diff);
+        m_creature->SelectHostileTarget();
         if (!m_creature->GetVictim() && m_initialAggro)
         {
             AcquireNewTarget();

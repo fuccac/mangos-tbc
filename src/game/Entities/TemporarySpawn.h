@@ -35,8 +35,6 @@ class TemporarySpawn : public Creature
         void SaveToDB();
         ObjectGuid const GetSpawnerGuid() const override { return m_spawner ; }
         void SetLinkedToOwnerAura(uint32 flags) { m_linkedToOwnerAura |= flags; };
-
-        void SetDeathState(DeathState state) override;
     private:
         bool IsExpired() const;
 

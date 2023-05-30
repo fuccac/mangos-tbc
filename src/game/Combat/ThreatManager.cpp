@@ -317,14 +317,8 @@ void ThreatContainer::update(bool force, bool isPlayer)
                 Unit* right = rhs->getTarget();
                 if (left->IsPlayer() && !right->IsPlayer())
                     return true;
-                if (!left->IsPlayer() && right->IsPlayer())
-                    return false;
-                bool attackLeft = owner->CanAttack(left);
-                bool attackRight = owner->CanAttack(right);
-                if (attackLeft && !attackRight)
+                if (owner->CanAttack(left) && !owner->CanAttack(right))
                     return true;
-                if (!attackLeft && attackRight)
-                    return false;
             }
             if (lhs->GetTauntState() != rhs->GetTauntState())
                 return lhs->GetTauntState() > rhs->GetTauntState();
@@ -384,12 +378,6 @@ HostileReference* ThreatContainer::selectNextVictim(Unit* attacker, HostileRefer
             }
 
             if (currentRef->GetTauntState() > currentVictim->GetTauntState()) // taunt overrides root skipping
-            {
-                found = true;
-                break;
-            }
-
-            if (currentRef->getTarget()->IsPlayer() && !currentVictim->getTarget()->IsPlayer())
             {
                 found = true;
                 break;
@@ -512,12 +500,11 @@ void ThreatManager::addThreatDirectly(Unit* victim, float threat)
         HostileReference* hostileReference = new HostileReference(victim, this, 0); // threat has to be 0 here
         iThreatContainer.addReference(hostileReference);
         hostileReference->addThreat(threat); // now we add the real threat
-        Unit* owner = getOwner();
-        owner->TriggerAggroLinkingEvent(victim);
+        getOwner()->TriggerAggroLinkingEvent(victim);
         Unit* victim_owner = victim->GetMaster();
-        if (victim->IsPropagatingThreatToOwner() && victim_owner && victim_owner->IsAlive() && victim_owner->CanJoinInAttacking(getOwner()))
+        if (victim_owner && victim_owner->IsAlive() && victim_owner->CanJoinInAttacking(getOwner()) && !victim_owner->hasUnitState(UNIT_STAT_FEIGN_DEATH))
             addThreat(victim_owner, 0.0f); // create a threat to the owner of a pet, if the pet attacks
-        if (owner->IsOfflineTarget(victim) || victim->IsPlayer() && static_cast<Player*>(victim)->IsGameMaster())
+        if (victim->GetTypeId() == TYPEID_PLAYER && static_cast<Player*>(victim)->IsGameMaster())
             hostileReference->setOnlineOfflineState(false); // GM is always offline
     }
 }
@@ -704,10 +691,10 @@ void ThreatManager::DeleteOutOfRangeReferences()
 {
     std::vector<HostileReference*> m_refs;
     for (auto& ref : iThreatContainer.getThreatList())
-        if (ref->isValid() && ref->getTarget()->GetDistance(getOwner(), true, DIST_CALC_COMBAT_REACH) > 60.f)
+        if (ref->getTarget()->GetDistance(getOwner(), true, DIST_CALC_COMBAT_REACH) > 60.f)
             m_refs.push_back(ref);
     for (auto& ref : iThreatOfflineContainer.getThreatList())
-        if (ref->isValid() && ref->getTarget()->GetDistance(getOwner(), true, DIST_CALC_COMBAT_REACH) > 60.f)
+        if (ref->getTarget()->GetDistance(getOwner(), true, DIST_CALC_COMBAT_REACH) > 60.f)
             m_refs.push_back(ref);
     for (auto& ref : m_refs)
     {

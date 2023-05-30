@@ -94,7 +94,8 @@ void HomeMovementGenerator<Creature>::Finalize(Creature& owner)
             owner.ClearTemporaryFaction();
 
         owner.LoadCreatureAddon(true);
-        owner.TriggerHomeEvents();
+        owner.AI()->JustReachedHome();
+
         if (owner.IsTemporarySummon())
         {
             if (owner.GetSpawnerGuid().IsCreatureOrPet())

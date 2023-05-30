@@ -19,7 +19,7 @@
 #include "AI/ScriptDevAI/ScriptDevAIMgr.h"
 #include "Globals/ObjectMgr.h"
 #include "Spells/SpellAuraDefines.h"
-#include "Util/ProgressBar.h"
+#include "ProgressBar.h"
 #include "Server/DBCStores.h"
 #include "Server/SQLStorages.h"
 #include "Chat/Chat.h"
@@ -73,48 +73,43 @@ int32 GetSpellMaxDuration(SpellEntry const* spellInfo)
     return (du->Duration[2] == -1) ? -1 : abs(du->Duration[2]);
 }
 
-int32 CalculateSpellDuration(SpellEntry const* spellInfo, Unit const* caster, Unit const* target, AuraScript* auraScript)
+int32 CalculateSpellDuration(SpellEntry const* spellInfo, Unit const* caster)
 {
     int32 duration = GetSpellDuration(spellInfo);
 
-    if (duration != -1 && caster && !spellInfo->HasAttribute(SPELL_ATTR_EX3_IGNORE_CASTER_MODIFIERS))
+    if (duration != -1 && caster && !spellInfo->HasAttribute(SPELL_ATTR_EX3_NO_DONE_BONUS))
     {
         int32 maxduration = GetSpellMaxDuration(spellInfo);
 
-        if (duration != maxduration && caster->IsPlayer())
+        if (duration != maxduration && caster->GetTypeId() == TYPEID_PLAYER)
             duration += int32((maxduration - duration) * caster->GetComboPoints() / 5);
-
-        if (auraScript)
-            duration = auraScript->OnDurationCalculate(caster, target, duration);
 
         if (Player* modOwner = caster->GetSpellModOwner())
         {
             modOwner->ApplySpellMod(spellInfo->Id, SPELLMOD_DURATION, duration);
 
-            if (spellInfo->HasAttribute(SPELL_ATTR_EX5_SPELL_HASTE_AFFECTS_PERIODIC))
+            if (spellInfo->HasAttribute(SPELL_ATTR_EX5_HASTE_AFFECT_DURATION))
                 duration = int32(duration * caster->GetFloatValue(UNIT_MOD_CAST_SPEED));
 
             if (duration < 0)
                 duration = 0;
         }
     }
-    else if (auraScript)
-        duration = auraScript->OnDurationCalculate(caster, target, duration);
 
     return duration;
 }
 
-uint32 GetSpellCastTime(SpellEntry const* spellInfo, WorldObject* caster, Spell* spell, bool consume)
+uint32 GetSpellCastTime(SpellEntry const* spellInfo, WorldObject* caster, Spell* spell)
 {
     if (spell)
     {
         // Workaround for custom cast time
         switch (spellInfo->Id)
         {
-            case 3366:  // Opening - seems to have a settable timer per usage
-                if (Item* item = spell->GetCastItem())
+            case 3366: // Opening - seems to have a settable timer per usage
+                if (spell->m_CastItem)
                 {
-                    switch (item->GetEntry())
+                    switch (spell->m_CastItem->GetEntry())
                     {
                         case 31088: // Tainted Core - instant opening
                             return 0;
@@ -134,8 +129,8 @@ uint32 GetSpellCastTime(SpellEntry const* spellInfo, WorldObject* caster, Spell*
             return 0;
 
         // spell targeted to non-trading trade slot item instant at trade success apply
-        if (caster->IsPlayer())
-            if (TradeData* my_trade = static_cast<Player*>(caster)->GetTradeData())
+        if (spell->GetCaster()->GetTypeId() == TYPEID_PLAYER)
+            if (TradeData* my_trade = ((Player*)(spell->GetCaster()))->GetTradeData())
                 if (Item* nonTrade = my_trade->GetTraderData()->GetItem(TRADE_SLOT_NONTRADED))
                     if (nonTrade == spell->m_targets.getItemTarget())
                         return 0;
@@ -152,22 +147,18 @@ uint32 GetSpellCastTime(SpellEntry const* spellInfo, WorldObject* caster, Spell*
     castTime = std::max(castTime, spellCastTimeEntry->MinCastTime);
 
     // Hunter Ranged spells need cast time + 0.5s to reflect tooltips, excluding Auto Shot
-    if (spellInfo->HasAttribute(SPELL_ATTR_USES_RANGED_SLOT) && (!spell || !spell->IsAutoRepeat()))
+    if (spellInfo->HasAttribute(SPELL_ATTR_RANGED) && (!spell || !spell->IsAutoRepeat()))
         castTime += 500;
 
     if (spell)
     {
-        if (Player* modOwner = caster->GetSpellModOwner())
-            modOwner->ApplySpellMod(spellInfo->Id, SPELLMOD_CASTING_TIME, castTime, consume);
+        if (Player* modOwner = spell->GetCaster()->GetSpellModOwner())
+            modOwner->ApplySpellMod(spellInfo->Id, SPELLMOD_CASTING_TIME, castTime, spell);
 
-        if (caster->IsUnit())
-        {
-            Unit* unitCaster = static_cast<Unit*>(caster);
-            if (!spellInfo->HasAttribute(SPELL_ATTR_IS_ABILITY) && !spellInfo->HasAttribute(SPELL_ATTR_IS_TRADESKILL) && !spellInfo->HasAttribute(SPELL_ATTR_EX3_IGNORE_CASTER_MODIFIERS))
-                castTime = int32(castTime * unitCaster->GetFloatValue(UNIT_MOD_CAST_SPEED));
-            else if (spell->IsRangedSpell() && !spell->IsAutoRepeat())
-                castTime = int32(castTime * unitCaster->m_modAttackSpeedPct[RANGED_ATTACK]);
-        }
+        if (!spellInfo->HasAttribute(SPELL_ATTR_ABILITY) && !spellInfo->HasAttribute(SPELL_ATTR_TRADESPELL) && !spellInfo->HasAttribute(SPELL_ATTR_EX3_NO_DONE_BONUS))
+            castTime = int32(castTime * spell->GetCaster()->GetFloatValue(UNIT_MOD_CAST_SPEED));
+        else if (spell->IsRangedSpell() && !spell->IsAutoRepeat())
+            castTime = int32(castTime * spell->GetCaster()->m_modAttackSpeedPct[RANGED_ATTACK]);
     }
 
     return (castTime > 0) ? uint32(castTime) : 0;
@@ -175,7 +166,7 @@ uint32 GetSpellCastTime(SpellEntry const* spellInfo, WorldObject* caster, Spell*
 
 uint32 GetSpellCastTimeForBonus(SpellEntry const* spellProto, DamageEffectType damagetype)
 {
-    uint32 CastingTime = (!IsChanneledSpell(spellProto)) || spellProto->HasAttribute(SPELL_ATTR_EX5_SPELL_HASTE_AFFECTS_PERIODIC) ? GetSpellCastTime(spellProto, nullptr) : GetSpellDuration(spellProto);
+    uint32 CastingTime = (!IsChanneledSpell(spellProto)) || spellProto->HasAttribute(SPELL_ATTR_EX5_HASTE_AFFECT_DURATION) ? GetSpellCastTime(spellProto, nullptr) : GetSpellDuration(spellProto);
 
     if (CastingTime > 7000) CastingTime = 7000;
     if (CastingTime < 1500) CastingTime = 1500;
@@ -340,7 +331,7 @@ WeaponAttackType GetWeaponAttackType(SpellEntry const* spellInfo)
     switch (spellInfo->DmgClass)
     {
         case SPELL_DAMAGE_CLASS_MELEE:
-            if (spellInfo->HasAttribute(SPELL_ATTR_EX3_REQUIRES_OFFHAND_WEAPON))
+            if (spellInfo->HasAttribute(SPELL_ATTR_EX3_REQ_OFFHAND))
                 return OFF_ATTACK;
             return BASE_ATTACK;
         case SPELL_DAMAGE_CLASS_RANGED:
@@ -348,9 +339,9 @@ WeaponAttackType GetWeaponAttackType(SpellEntry const* spellInfo)
         default:
         {
             // Wands
-            if (spellInfo->HasAttribute(SPELL_ATTR_EX2_AUTO_REPEAT))
+            if (spellInfo->HasAttribute(SPELL_ATTR_EX2_AUTOREPEAT_FLAG))
                 return RANGED_ATTACK;
-            if (spellInfo->HasAttribute(SPELL_ATTR_EX3_REQUIRES_OFFHAND_WEAPON))
+            if (spellInfo->HasAttribute(SPELL_ATTR_EX3_REQ_OFFHAND))
                 return OFF_ATTACK;
             return BASE_ATTACK;
         }
@@ -444,7 +435,7 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
             if (spellInfo->IsFitToFamilyMask(uint64(0x0000000010000180)))
                 return SPELL_BLESSING;
 
-            if (spellInfo->IsFitToFamilyMask(uint64(0x00000820180400)) && spellInfo->HasAttribute(SPELL_ATTR_EX3_NOT_A_PROC)) // TODO: Remove this WTF condition
+            if (spellInfo->IsFitToFamilyMask(uint64(0x00000820180400)) && spellInfo->HasAttribute(SPELL_ATTR_EX3_TRIGGERED_CAN_TRIGGER_SPECIAL)) // TODO: Remove this WTF condition
                 return SPELL_JUDGEMENT;
 
             if (IsSpellHaveEffect(spellInfo, SPELL_EFFECT_APPLY_AREA_AURA_PARTY))
@@ -468,7 +459,7 @@ SpellSpecific GetSpellSpecific(uint32 spellId)
     // Tracking spells (exclude Well Fed, some other always allowed cases)
     if (IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_CREATURES) ||
             IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_STEALTHED) ||
-            (IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_RESOURCES) && !spellInfo->HasAttribute(SPELL_ATTR_PASSIVE) && !spellInfo->HasAttribute(SPELL_ATTR_NO_AURA_CANCEL)))
+            (IsSpellHaveAura(spellInfo, SPELL_AURA_TRACK_RESOURCES) && !spellInfo->HasAttribute(SPELL_ATTR_PASSIVE) && !spellInfo->HasAttribute(SPELL_ATTR_CANT_CANCEL)))
         return SPELL_TRACKER;
 
     // Elixirs can have different families, but potions mostly
@@ -547,7 +538,7 @@ SpellCastResult GetErrorAtShapeshiftedCast(SpellEntry const* spellInfo, uint32 f
     else
     {
         // needs shapeshift
-        if (!spellInfo->HasAttribute(SPELL_ATTR_EX2_ALLOW_WHILE_NOT_SHAPESHIFTED) && spellInfo->Stances != 0)
+        if (!spellInfo->HasAttribute(SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT) && spellInfo->Stances != 0)
             return SPELL_FAILED_ONLY_SHAPESHIFT;
     }
 
@@ -934,41 +925,6 @@ void SpellMgr::LoadSpellProcItemEnchant()
     sLog.outString();
 }
 
-bool IsCastEndProcModifierAura(SpellEntry const* spellInfo, SpellEffectIndex effecIdx, SpellEntry const* procSpell)
-{
-    // modifier auras that can proc on cast end
-    switch (AuraType(spellInfo->EffectApplyAuraName[effecIdx]))
-    {
-        case SPELL_AURA_ADD_FLAT_MODIFIER:
-        case SPELL_AURA_ADD_PCT_MODIFIER:
-        {
-            switch (spellInfo->EffectMiscValue[effecIdx])
-            {
-                case SPELLMOD_RANGE:
-                case SPELLMOD_RADIUS:
-                case SPELLMOD_NOT_LOSE_CASTING_TIME:
-                case SPELLMOD_CASTING_TIME:
-                case SPELLMOD_COOLDOWN:
-                case SPELLMOD_COST:
-                case SPELLMOD_GLOBAL_COOLDOWN:
-                    return true;
-                default:
-                    break;
-            }
-        }
-        case SPELL_AURA_MOD_DAMAGE_PERCENT_DONE:
-        {
-            for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
-                if (IsEffectHandledImmediatelySpellLaunch(procSpell, SpellEffectIndex(i)))
-                    return true;
-
-            return false;
-        }
-        default:
-            return false;
-    }
-}
-
 struct DoSpellBonuses
 {
     DoSpellBonuses(SpellBonusMap& _spellBonusMap, SpellBonusEntry const& _spellBonus) : spellBonusMap(_spellBonusMap), spellBonus(_spellBonus) {}
@@ -1114,7 +1070,7 @@ void SpellMgr::LoadSpellBonuses()
     sLog.outString();
 }
 
-bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellProcEvent, uint32 EventProcFlag, SpellEntry const* spellInfo, uint32 procFlags, uint32 procExtra)
+bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellProcEvent, uint32 EventProcFlag, SpellEntry const* procSpell, uint32 procFlags, uint32 procExtra)
 {
     // No extra req need
     uint32 procEvent_procEx = PROC_EX_NONE;
@@ -1124,43 +1080,43 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellPr
         return false;
 
     // Always trigger for this
-    if (EventProcFlag & (PROC_FLAG_HEARTBEAT | PROC_FLAG_KILL | PROC_FLAG_ON_TRAP_ACTIVATION | PROC_FLAG_DEATH))
+    if (EventProcFlag & (PROC_FLAG_KILLED | PROC_FLAG_KILL | PROC_FLAG_ON_TRAP_ACTIVATION | PROC_FLAG_DEATH))
         return true;
 
-    if (procFlags & PROC_FLAG_DEAL_HARMFUL_PERIODIC && EventProcFlag & PROC_FLAG_DEAL_HARMFUL_PERIODIC)
+    if (procFlags & PROC_FLAG_ON_DO_PERIODIC && EventProcFlag & PROC_FLAG_ON_DO_PERIODIC)
     {
         if (procExtra & PROC_EX_INTERNAL_HOT)
         {
-            if (EventProcFlag == PROC_FLAG_DEAL_HARMFUL_PERIODIC)
+            if (EventProcFlag == PROC_FLAG_ON_DO_PERIODIC)
             {
-                // no aura with only PROC_FLAG_DONE_PERIODIC and spellFamilyName == 0 can proc from a HOT.
-                if (!spellInfo->SpellFamilyName)
+                /// no aura with only PROC_FLAG_DONE_PERIODIC and spellFamilyName == 0 can proc from a HOT.
+                if (!procSpell->SpellFamilyName)
                     return false;
             }
-            // Aura must have positive procflags for a HOT to proc
-            else if (!(EventProcFlag & (PROC_FLAG_DEAL_HELPFUL_SPELL | PROC_FLAG_DEAL_HELPFUL_ABILITY)))
+            /// Aura must have positive procflags for a HOT to proc
+            else if (!(EventProcFlag & (PROC_FLAG_DONE_SPELL_MAGIC_DMG_CLASS_POS | PROC_FLAG_DONE_SPELL_NONE_DMG_CLASS_POS)))
                 return false;
         }
-        // Aura must have negative or neutral(PROC_FLAG_DONE_PERIODIC only) procflags for a DOT to proc
-        else if (EventProcFlag != PROC_FLAG_DEAL_HARMFUL_PERIODIC)
-            if (!(EventProcFlag & (PROC_FLAG_DEAL_HARMFUL_SPELL | PROC_FLAG_DEAL_HARMFUL_ABILITY)))
+        /// Aura must have negative or neutral(PROC_FLAG_DONE_PERIODIC only) procflags for a DOT to proc
+        else if (EventProcFlag != PROC_FLAG_ON_DO_PERIODIC)
+            if (!(EventProcFlag & (PROC_FLAG_DONE_SPELL_MAGIC_DMG_CLASS_NEG | PROC_FLAG_DONE_SPELL_NONE_DMG_CLASS_NEG)))
                 return false;
     }
 
-    if (procFlags & PROC_FLAG_TAKE_HARMFUL_PERIODIC && EventProcFlag & PROC_FLAG_TAKE_HARMFUL_PERIODIC)
+    if (procFlags & PROC_FLAG_ON_TAKE_PERIODIC && EventProcFlag & PROC_FLAG_ON_TAKE_PERIODIC)
     {
         if (procExtra & PROC_EX_INTERNAL_HOT)
         {
-            // No aura that only has PROC_FLAG_TAKEN_PERIODIC can proc from a HOT.
-            if (EventProcFlag == PROC_FLAG_TAKE_HARMFUL_PERIODIC)
+            /// No aura that only has PROC_FLAG_TAKEN_PERIODIC can proc from a HOT.
+            if (EventProcFlag == PROC_FLAG_ON_TAKE_PERIODIC)
                 return false;
-            // Aura must have positive procflags for a HOT to proc
-            if (!(EventProcFlag & (PROC_FLAG_TAKE_HELPFUL_SPELL | PROC_FLAG_TAKE_HELPFUL_ABILITY)))
+            /// Aura must have positive procflags for a HOT to proc
+            if (!(EventProcFlag & (PROC_FLAG_TAKEN_SPELL_MAGIC_DMG_CLASS_POS | PROC_FLAG_TAKEN_SPELL_NONE_DMG_CLASS_POS)))
                 return false;
         }
-        // Aura must have negative or neutral(PROC_FLAG_TAKEN_PERIODIC only) procflags for a DOT to proc
-        else if (EventProcFlag != PROC_FLAG_TAKE_HARMFUL_PERIODIC)
-            if (!(EventProcFlag & (PROC_FLAG_TAKE_HARMFUL_SPELL | PROC_FLAG_TAKE_HARMFUL_ABILITY)))
+        /// Aura must have negative or neutral(PROC_FLAG_TAKEN_PERIODIC only) procflags for a DOT to proc
+        else if (EventProcFlag != PROC_FLAG_ON_TAKE_PERIODIC)
+            if (!(EventProcFlag & (PROC_FLAG_TAKEN_SPELL_MAGIC_DMG_CLASS_NEG | PROC_FLAG_TAKEN_SPELL_NONE_DMG_CLASS_NEG)))
                 return false;
     }
 
@@ -1170,7 +1126,7 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellPr
         procEvent_procEx = spellProcEvent->procEx;
 
         // For melee triggers
-        if (spellInfo == nullptr)
+        if (procSpell == nullptr)
         {
             // Check (if set) for school (melee attack have Normal school)
             if (spellProcEvent->schoolMask && (spellProcEvent->schoolMask & SPELL_SCHOOL_MASK_NORMAL) == 0)
@@ -1179,11 +1135,11 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellPr
         else // For spells need check school/spell family/family mask
         {
             // Check (if set) for school
-            if (spellProcEvent->schoolMask && (spellProcEvent->schoolMask & spellInfo->SchoolMask) == 0)
+            if (spellProcEvent->schoolMask && (spellProcEvent->schoolMask & procSpell->SchoolMask) == 0)
                 return false;
 
             // Check (if set) for spellFamilyName
-            if (spellProcEvent->spellFamilyName && (spellProcEvent->spellFamilyName != spellInfo->SpellFamilyName))
+            if (spellProcEvent->spellFamilyName && (spellProcEvent->spellFamilyName != procSpell->SpellFamilyName))
                 return false;
         }
     }
@@ -1191,8 +1147,8 @@ bool SpellMgr::IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellPr
     // Check for extra req (if none) and hit/crit
     if (procEvent_procEx == PROC_EX_NONE)
     {
-        // No extra req, so can trigger for (damage/healing present) and cast end/hit/crit
-        if (procExtra & (PROC_EX_CAST_END | PROC_EX_NORMAL_HIT | PROC_EX_CRITICAL_HIT))
+        // No extra req, so can trigger for (damage/healing present) and hit/crit
+        if (procExtra & (PROC_EX_NORMAL_HIT | PROC_EX_CRITICAL_HIT))
             return true;
     }
     else // all spells hits here only if resist/reflect/immune/evade
@@ -2144,15 +2100,6 @@ void SpellMgr::LoadSpellScriptTarget()
                 }
                 break;
             }
-            case SPELL_TARGET_TYPE_STRING_ID:
-            {
-                if (!sScriptMgr.ExistsStringId(itr->targetEntry))
-                {
-                    sLog.outErrorDb("Table `spell_script_target`: stringId %u does not exist.", itr->targetEntry);
-                    sSpellScriptTargetStorage.EraseEntry(itr->spellId);
-                }
-                break;
-            }
             default:
                 if (!itr->targetEntry)
                 {
@@ -2578,7 +2525,7 @@ SpellCastResult SpellMgr::GetSpellAllowedInLocationError(SpellEntry const* spell
         return SPELL_FAILED_REQUIRES_AREA;
 
     // continent limitation (virtual continent), ignore for GM
-    if (spellInfo->HasAttribute(SPELL_ATTR_EX4_ONLY_FLYING_AREAS) && !(player && player->IsGameMaster()))
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX4_CAST_ONLY_IN_OUTLAND) && !(player && player->IsGameMaster()))
     {
         uint32 v_map = GetVirtualMapForMapAndZone(map_id, zone_id);
         MapEntry const* mapEntry = sMapStore.LookupEntry(v_map);
@@ -2587,7 +2534,7 @@ SpellCastResult SpellMgr::GetSpellAllowedInLocationError(SpellEntry const* spell
     }
 
     // raid instance limitation
-    if (spellInfo->HasAttribute(SPELL_ATTR_EX6_NOT_IN_RAID_INSTANCES))
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX6_NOT_IN_RAID_INSTANCE))
     {
         MapEntry const* mapEntry = sMapStore.LookupEntry(map_id);
         if (!mapEntry || mapEntry->IsRaid())
@@ -2611,13 +2558,13 @@ SpellCastResult SpellMgr::GetSpellAllowedInLocationError(SpellEntry const* spell
     // do not allow spells to be cast in arenas
     // - with SPELL_ATTR_EX4_NOT_USABLE_IN_ARENA flag
     // - with greater than 15 min CD
-    if (spellInfo->HasAttribute(SPELL_ATTR_EX4_NOT_IN_ARENA) ||
-            (GetSpellRecoveryTime(spellInfo) > 15 * MINUTE * IN_MILLISECONDS && !spellInfo->HasAttribute(SPELL_ATTR_EX4_IGNORE_DEFAULT_ARENA_RESTRICTIONS)))
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX4_NOT_USABLE_IN_ARENA) ||
+            (GetSpellRecoveryTime(spellInfo) > 15 * MINUTE * IN_MILLISECONDS && !spellInfo->HasAttribute(SPELL_ATTR_EX4_USABLE_IN_ARENA)))
         if (player && player->InArena())
             return SPELL_FAILED_NOT_IN_ARENA;
 
     // Spell casted only on battleground
-    if (spellInfo->HasAttribute(SPELL_ATTR_EX3_ONLY_BATTLEGROUNDS))
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX3_BATTLEGROUND))
         if (!player || !player->InBattleGround())
             return SPELL_FAILED_ONLY_BATTLEGROUNDS;
 
@@ -2633,6 +2580,11 @@ SpellCastResult SpellMgr::GetSpellAllowedInLocationError(SpellEntry const* spell
             return map_id == 30 && bg
                    && bg->GetStatus() != STATUS_WAIT_JOIN ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
         }
+        case 23333:                                         // Warsong Flag
+        case 23335:                                         // Silverwing Flag
+            return map_id == 489 && player && player->InBattleGround() ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
+        case 34976:                                         // Netherstorm Flag
+            return map_id == 566 && player && player->InBattleGround() ? SPELL_CAST_OK : SPELL_FAILED_REQUIRES_AREA;
         case 2584:                                          // Waiting to Resurrect
         case 42792:                                         // Recently Dropped Flag
         case 22011:                                         // Spirit Heal Channel
@@ -3014,8 +2966,11 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
         {
             // Seduction
             // ToDo: Fix  diminishing returns aspect of this spell, currently limited to 10secs in pvp only as setting DIMINISHING_FEAR to DRTYPE_ALL messes with PvE
-            if (spellproto->IsFitToFamilyMask(uint64(0x00040000000)) && spellproto->Id != 7870) // Exclude Lesser Invisibility
+            if (spellproto->IsFitToFamilyMask(uint64(0x00040000000)))
                 return DIMINISHING_FEAR;
+            // Curses/etc
+            if (spellproto->IsFitToFamilyMask(uint64(0x00080000000)))
+                return DIMINISHING_LIMITONLY;
             /* Unstable Affliction Dispel Silence
             // ToDo: Fix diminishing returns aspect for this spell 5 2.5 1.25 0
             else if (spellproto->Id == 31117)
@@ -3051,8 +3006,6 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
                 return DIMINISHING_FEAR;
             break;
         }
-        case SPELLFAMILY_UNK1:
-            return DIMINISHING_NONE;
         default:
             break;
     }
@@ -3074,8 +3027,8 @@ DiminishingGroup GetDiminishingReturnsGroupForSpell(SpellEntry const* spellproto
         return DIMINISHING_FEAR;
     if (mechanic & (1 << (MECHANIC_CHARM - 1)))
         return DIMINISHING_CHARM;
-    //if (mechanic & (1 << (MECHANIC_SILENCE - 1)))
-    //    return DIMINISHING_SILENCE;
+    if (mechanic & (1 << (MECHANIC_SILENCE - 1)))
+        return DIMINISHING_SILENCE;
     if (mechanic & (1 << (MECHANIC_DISARM - 1)))
         return DIMINISHING_DISARM;
     if (mechanic & (1 << (MECHANIC_FREEZE - 1)))
@@ -3139,7 +3092,7 @@ DiminishingReturnsType GetDiminishingReturnsGroupType(DiminishingGroup group)
         case DIMINISHING_TRIGGER_ROOT:
         case DIMINISHING_FEAR:
         case DIMINISHING_KNOCKOUT_POLYMORPH_SAPPED:
-        //case DIMINISHING_SILENCE: Patch 3.0.8+ only
+        case DIMINISHING_SILENCE:
         case DIMINISHING_DISARM:
         case DIMINISHING_DEATHCOIL:
         case DIMINISHING_FREEZE:
@@ -3151,13 +3104,6 @@ DiminishingReturnsType GetDiminishingReturnsGroupType(DiminishingGroup group)
     }
 
     return DRTYPE_NONE;
-}
-
-bool IsSubjectToDiminishingLevels(DiminishingGroup group, bool pvp)
-{
-    if ((GetDiminishingReturnsGroupType(group) == DRTYPE_PLAYER && pvp) || GetDiminishingReturnsGroupType(group) == DRTYPE_ALL)
-        return true;
-    return false;
 }
 
 bool IsCreatureDRSpell(SpellEntry const* spellInfo)

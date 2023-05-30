@@ -24,7 +24,7 @@
 #define __WORLDRUNNABLE_H
 
 #include "Common.h"
-#include "Multithreading/Threading.h"
+#include "Threading.h"
 
 /// Heartbeat thread for the World
 class WorldRunnable : public MaNGOS::Runnable

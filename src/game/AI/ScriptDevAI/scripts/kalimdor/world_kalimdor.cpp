@@ -19,9 +19,6 @@
 #include "AI/ScriptDevAI/scripts/world/world_map_scripts.h"
 #include "World/WorldState.h"
 #include "World/WorldStateDefines.h"
-#include "GameEvents/GameEventMgr.h"
-#include "AI/ScriptDevAI/scripts/world/brewfest.h"
-#include "AI/ScriptDevAI/scripts/world/scourge_invasion.h"
 
 /* *********************************************************
  *                     KALIMDOR
@@ -37,13 +34,14 @@ struct GhostOPlasmEvent
 
 struct world_map_kalimdor : public ScriptedMap
 {
-    world_map_kalimdor(Map* pMap) : ScriptedMap(pMap), m_shadeData({ AREAID_RAZOR_HILL }), m_brewfestEvent(this) { Initialize(); }
+    world_map_kalimdor(Map* pMap) : ScriptedMap(pMap), m_shadeData({ AREAID_RAZOR_HILL }) { Initialize(); }
 
     uint8 m_uiMurkdeepAdds_KilledAddCount;
     std::vector<GhostOPlasmEvent> m_vGOEvents;
     uint32 m_uiOmenResetTimer;
     uint32 m_uiOmenMoonlightTimer;
     uint8 m_uiRocketsCounter;
+    uint8 m_uiTheramoreMarksmenAlive;
     uint32 m_encounter[MAX_ENCOUNTER];
     bool b_isOmenSpellCreditDone;
     std::array<std::vector<ObjectGuid>, MAX_ELEMENTS> m_aElementalRiftGUIDs;
@@ -51,8 +49,6 @@ struct world_map_kalimdor : public ScriptedMap
     uint32 m_freedSpriteDarter;
     // Shade of the Horseman village attack event
     ShadeOfTheHorsemanData m_shadeData;
-    // Brewfest events
-    BrewfestEvent m_brewfestEvent;
 
     void Initialize() override
     {
@@ -61,6 +57,7 @@ struct world_map_kalimdor : public ScriptedMap
         m_uiOmenResetTimer = 0;
         m_uiOmenMoonlightTimer = 0;
         m_uiRocketsCounter = 0;
+        m_uiTheramoreMarksmenAlive = 0;
         m_freedSpriteDarter = 0;
         b_isOmenSpellCreditDone = false;
         for (auto& riftList : m_aElementalRiftGUIDs)
@@ -69,9 +66,6 @@ struct world_map_kalimdor : public ScriptedMap
         memset(&m_encounter, 0, sizeof(m_encounter));
 
         m_shadeData.Reset();
-
-        instance->GetVariableManager().SetVariableData(WORLD_STATE_TETHYR_SHOW, true, 0, AREAID_THERAMORE_ISLE);
-        instance->GetVariableManager().SetVariableData(WORLD_STATE_TETHYR_COUNT, true, 0, AREAID_THERAMORE_ISLE);
     }
 
     bool CheckConditionCriteriaMeet(Player const* player, uint32 instanceConditionId, WorldObject const* conditionSource, uint32 conditionSourceType) const override
@@ -98,18 +92,10 @@ struct world_map_kalimdor : public ScriptedMap
             case NPC_THE_WINDREAVER:
             case NPC_BARON_CHARR:
             case NPC_HIGHLORD_KRUUL:
-            case NPC_BLIX_FIXWIDGET:
-            case NPC_DROHNS_DISTILLERY_BARKER:
-            case NPC_TCHALIS_VOODOO_BREWERY_BARKER:
-            case NPC_GORDOK_BREW_BARKER_H:
-            case NPC_TAPPER_SWINDLEKEG:
-            case NPC_VOLJIN:
-            case NPC_DARK_IRON_HERALD:
                 m_npcEntryGuidStore[pCreature->GetEntry()] = pCreature->GetObjectGuid();
                 break;
             case NPC_MASKED_ORPHAN_MATRON:
             case NPC_COSTUMED_ORPHAN_MATRON:
-            case NPC_NECROPOLIS_HEALTH:
                 m_npcEntryGuidCollection[pCreature->GetEntry()].push_back(pCreature->GetObjectGuid());
                 break;
         }
@@ -184,18 +170,6 @@ struct world_map_kalimdor : public ScriptedMap
             case NPC_AVALANCHION:
                 DoDespawnElementalRifts(ELEMENTAL_EARTH);
                 break;
-            case NPC_COLOSSUS_OF_ZORA:
-                WorldObject::SpawnCreature(155122, instance);
-                break;
-            case NPC_COLOSSUS_OF_REGAL:
-                WorldObject::SpawnCreature(155124, instance);
-                break;
-            case NPC_COLOSSUS_OF_ASHI:
-                WorldObject::SpawnCreature(155123, instance);
-                break;
-            case NPC_NECROPOLIS_HEALTH:
-                m_npcEntryGuidCollection.erase(pCreature->GetObjectGuid());
-                break;
         }
     }
 
@@ -221,9 +195,6 @@ struct world_map_kalimdor : public ScriptedMap
                 break;
             case GO_AIR_RIFT:
                 m_aElementalRiftGUIDs[ELEMENTAL_AIR].push_back(pGo->GetObjectGuid());
-                break;
-            case GO_SUMMON_CIRCLE:
-                m_goEntryGuidCollection[pGo->GetEntry()].push_back(pGo->GetObjectGuid());
                 break;
         }
     }
@@ -350,9 +321,6 @@ struct world_map_kalimdor : public ScriptedMap
             if (Creature* matron = instance->GetCreature(m_npcEntryGuidStore[NPC_MASKED_ORPHAN_MATRON]))
                 matron->AI()->SendAIEvent(AI_EVENT_CUSTOM_A, matron, matron);
         }
-
-        if (sGameEventMgr.IsActiveHoliday(HOLIDAY_BREWFEST))
-            m_brewfestEvent.Update(diff);
     }
 
     void SetData(uint32 uiType, uint32 uiData)
@@ -407,18 +375,17 @@ struct world_map_kalimdor : public ScriptedMap
                 switch (uiData)
                 {
                     case NOT_STARTED:
-                        instance->GetVariableManager().SetVariable(WORLD_STATE_TETHYR_SHOW, 0);
-                        instance->GetVariableManager().SetVariable(WORLD_STATE_TETHYR_COUNT, 0);
-                        instance->SetZoneWeather(0, AREAID_THERAMORE_ISLE, 0, 0.f);
+                        sWorldState.ExecuteOnAreaPlayers(AREAID_THERAMORE_ISLE, [=](Player* player)->void {player->SendUpdateWorldState(WORLD_STATE_TETHYR_SHOW, 0); });
                         break;
                     case SPECIAL: // Archer slain
-                        instance->GetVariableManager().SetVariable(WORLD_STATE_TETHYR_COUNT, instance->GetVariableManager().GetVariable(WORLD_STATE_TETHYR_COUNT) - 1);
+                        --m_uiTheramoreMarksmenAlive;
+                        sWorldState.ExecuteOnAreaPlayers(AREAID_THERAMORE_ISLE, [=](Player* player)->void {player->SendUpdateWorldState(WORLD_STATE_TETHYR_COUNT, m_uiTheramoreMarksmenAlive); });
                         break;
                     case IN_PROGRESS:
                         if (m_encounter[uiType] != IN_PROGRESS)
-                            instance->GetVariableManager().SetVariable(WORLD_STATE_TETHYR_COUNT, 12);
-                        instance->GetVariableManager().SetVariable(WORLD_STATE_TETHYR_SHOW, 1);
-                        instance->SetZoneWeather(0, AREAID_THERAMORE_ISLE, 3, 0.5f);
+                            m_uiTheramoreMarksmenAlive = 12;
+                        sWorldState.ExecuteOnAreaPlayers(AREAID_THERAMORE_ISLE, [=](Player* player)->void {player->SendUpdateWorldState(WORLD_STATE_TETHYR_SHOW, 1); });
+                        sWorldState.ExecuteOnAreaPlayers(AREAID_THERAMORE_ISLE, [=](Player* player)->void {player->SendUpdateWorldState(WORLD_STATE_TETHYR_COUNT, m_uiTheramoreMarksmenAlive); });
                         break;
                 }
             }
@@ -439,9 +406,6 @@ struct world_map_kalimdor : public ScriptedMap
                         uiData = DONE;
                 }
             }
-            case TYPE_GONG_TIME:
-                // TODO: Handle initial first gong only
-                break;
             default:
                 if (uiType >= TYPE_SHADE_OF_THE_HORSEMAN_ATTACK_PHASE && uiType <= TYPE_SHADE_OF_THE_HORSEMAN_MAX)
                     return m_shadeData.HandleSetData(uiType, uiData);
@@ -454,6 +418,12 @@ struct world_map_kalimdor : public ScriptedMap
     {
         switch (areaId)
         {
+            case AREAID_THERAMORE_ISLE:
+            {
+                FillInitialWorldStateData(data, count, WORLD_STATE_TETHYR_SHOW, uint32(GetData(TYPE_TETHYR) != NOT_STARTED));
+                FillInitialWorldStateData(data, count, WORLD_STATE_TETHYR_COUNT, m_uiTheramoreMarksmenAlive);
+                break;
+            }
             case AREAID_RAZOR_HILL:
             {
                 FillInitialWorldStateData(data, count, WORLD_STATE_SHADE_OF_THE_HORSEMAN_TIMER, m_shadeData.CalculateWorldstateTimerValue());
@@ -467,14 +437,6 @@ struct world_map_kalimdor : public ScriptedMap
         if (type >= TYPE_SHADE_OF_THE_HORSEMAN_ATTACK_PHASE && type <= TYPE_SHADE_OF_THE_HORSEMAN_MAX)
             return m_shadeData.HandleGetData(type);
         return m_encounter[type];
-    }
-
-    void OnEventHappened(uint16 event_id, bool activate, bool /*resume*/) override
-    {
-        if (event_id == GAME_EVENT_BREWFEST_DARK_IRON_ATTACK && activate)
-            m_brewfestEvent.StartDarkIronAttackEvent();
-        else if (event_id == GAME_EVENT_BREWFEST_KEG_TAPPING && activate)
-            m_brewfestEvent.StartKegTappingEvent();
     }
 };
 

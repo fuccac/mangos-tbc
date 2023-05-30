@@ -63,13 +63,13 @@ static const uint32 aMarkCorruption[MAX_HYDROSS_MARKS] = {38219, 38220, 38221, 3
 
 struct boss_hydross_the_unstableAI : public ScriptedAI
 {
-    boss_hydross_the_unstableAI(Creature* creature) : ScriptedAI(creature)
+    boss_hydross_the_unstableAI(Creature* pCreature) : ScriptedAI(pCreature)
     {
-        m_instance = dynamic_cast<instance_serpentshrine_cavern*>(creature->GetInstanceData());
+        m_pInstance = (instance_serpentshrine_cavern*)pCreature->GetInstanceData();
         Reset();
     }
 
-    instance_serpentshrine_cavern* m_instance;
+    instance_serpentshrine_cavern* m_pInstance;
 
     uint32 m_uiBeamInitTimer;
     uint32 m_uiElementalTimer;
@@ -103,8 +103,8 @@ struct boss_hydross_the_unstableAI : public ScriptedAI
     {
         DoScriptText(SAY_AGGRO, m_creature);
 
-        if (m_instance)
-            m_instance->SetData(TYPE_HYDROSS_EVENT, IN_PROGRESS);
+        if (m_pInstance)
+            m_pInstance->SetData(TYPE_HYDROSS_EVENT, IN_PROGRESS);
     }
 
     void KilledUnit(Unit* /*pVictim*/) override
@@ -119,14 +119,14 @@ struct boss_hydross_the_unstableAI : public ScriptedAI
     {
         DoScriptText(m_bCorruptedForm ? SAY_CORRUPT_DEATH : SAY_CLEAN_DEATH, m_creature);
 
-        if (m_instance)
-            m_instance->SetData(TYPE_HYDROSS_EVENT, DONE);
+        if (m_pInstance)
+            m_pInstance->SetData(TYPE_HYDROSS_EVENT, DONE);
     }
 
     void JustReachedHome() override
     {
-        if (m_instance)
-            m_instance->SetData(TYPE_HYDROSS_EVENT, FAIL);
+        if (m_pInstance)
+            m_pInstance->SetData(TYPE_HYDROSS_EVENT, FAIL);
     }
 
     // Adds summon during phase switch
@@ -143,11 +143,11 @@ struct boss_hydross_the_unstableAI : public ScriptedAI
     // Wrapper to handle the blue beams animation
     void DoHandleBeamHelpers(bool bReset)
     {
-        if (!m_instance)
+        if (!m_pInstance)
             return;
 
         GuidList lBeamHelpersGuid;
-        m_instance->GetBeamHelpersGUIDList(lBeamHelpersGuid);
+        m_pInstance->GetBeamHelpersGUIDList(lBeamHelpersGuid);
 
         for (GuidList::const_iterator itr = lBeamHelpersGuid.begin(); itr != lBeamHelpersGuid.end(); ++itr)
         {
@@ -309,6 +309,11 @@ struct boss_hydross_the_unstableAI : public ScriptedAI
     }
 };
 
+UnitAI* GetAI_boss_hydross_the_unstable(Creature* pCreature)
+{
+    return new boss_hydross_the_unstableAI(pCreature);
+}
+
 struct npc_spawn_of_hydrossAI : public ScriptedAI
 {
     npc_spawn_of_hydrossAI(Creature* pCreature) : ScriptedAI(pCreature)
@@ -352,15 +357,20 @@ struct npc_spawn_of_hydrossAI : public ScriptedAI
     }
 };
 
+UnitAI* GetAI_npc_spawn_of_hydross(Creature* pCreature)
+{
+    return new npc_spawn_of_hydrossAI(pCreature);
+}
+
 void AddSC_boss_hydross_the_unstable()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_hydross_the_unstable";
-    pNewScript->GetAI = &GetNewAIInstance<boss_hydross_the_unstableAI>;
+    pNewScript->GetAI = &GetAI_boss_hydross_the_unstable;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "npc_spawn_of_hydross";
-    pNewScript->GetAI = &GetNewAIInstance<npc_spawn_of_hydrossAI>;
+    pNewScript->GetAI = &GetAI_npc_spawn_of_hydross;
     pNewScript->RegisterSelf();
 }

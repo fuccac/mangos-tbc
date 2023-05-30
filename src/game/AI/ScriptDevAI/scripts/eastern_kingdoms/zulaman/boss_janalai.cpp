@@ -32,8 +32,8 @@ enum
     SAY_SUMMON_HATCHER              = -1568002,
     SAY_ALL_EGGS                    = -1568003,
     SAY_BERSERK                     = -1568004,
-    SAY_SLAY_1                      = 23585,
-    SAY_SLAY_2                      = 23586,
+    SAY_SLAY_1                      = -1568005,
+    SAY_SLAY_2                      = -1568006,
     SAY_DEATH                       = -1568007,
     SAY_EVENT_STRANGERS             = -1568008,
     SAY_EVENT_FRIENDS               = -1568009,
@@ -78,8 +78,8 @@ enum
     PATH_ID_RIGHT_SHORT             = 3,
     PATH_ID_LEFT_SHORT              = 4,
 
-    RIGHT_LAST_POINT                = 3,
-    LEFT_LAST_POINT                 = 3,
+    RIGHT_LAST_POINT                = 2,
+    LEFT_LAST_POINT                 = 2,
     SHORT_LAST_POINT                = 1,
 };
 
@@ -113,11 +113,6 @@ struct boss_janalaiAI : public CombatAI
             if (bomb)
                 bomb->CastSpell(nullptr, SPELL_FIRE_BOMB_EXPLODE, TRIGGERED_NONE);
         });
-        m_creature->GetCombatManager().SetLeashingCheck([](Unit*, float x, float /*y*/, float /*z*/)
-        {
-            return x > -8.f || x < -57.f;
-        });
-        AddOnKillText(SAY_SLAY_1, SAY_SLAY_2);
         Reset();
     }
 
@@ -161,6 +156,11 @@ struct boss_janalaiAI : public CombatAI
 
         if (m_instance)
             m_instance->SetData(TYPE_JANALAI, DONE);
+    }
+
+    void KilledUnit(Unit* /*victim*/) override
+    {
+        DoScriptText(urand(0, 1) ? SAY_SLAY_1 : SAY_SLAY_2, m_creature);
     }
 
     void Aggro(Unit* /*who*/) override
@@ -310,6 +310,13 @@ struct boss_janalaiAI : public CombatAI
                 return;
         }
     }
+
+    void UpdateAI(const uint32 diff) override
+    {
+        CombatAI::UpdateAI(diff);
+        if (m_creature->IsInCombat())
+            EnterEvadeIfOutOfCombatArea(diff);
+    }
 };
 
 struct npc_amanishi_hatcherAI : public ScriptedAI
@@ -388,6 +395,11 @@ struct npc_amanishi_hatcherAI : public ScriptedAI
         }
     }
 
+    uint32 GetScriptData() override
+    {
+        return m_hatchlingCount;
+    }
+
     void UpdateAI(const uint32 diff) override
     {
         if (m_bWaypointEnd && m_uiHatchlingTimer)
@@ -413,28 +425,25 @@ struct npc_amanishi_hatcherAI : public ScriptedAI
     }
 };
 
-struct HatchEggs : public SpellScript
+UnitAI* GetAI_boss_janalaiAI(Creature* creature)
 {
-    void OnInit(Spell* spell) const override
-    {
-        if (npc_amanishi_hatcherAI* ai = dynamic_cast<npc_amanishi_hatcherAI*>(static_cast<Unit*>(spell->GetCaster())->AI()))
-            spell->SetMaxAffectedTargets(ai->m_hatchlingCount);
-        else
-            spell->SetMaxAffectedTargets(1);
-    }
-};
+    return new boss_janalaiAI(creature);
+}
+
+UnitAI* GetAI_npc_amanishi_hatcherAI(Creature* creature)
+{
+    return new npc_amanishi_hatcherAI(creature);
+}
 
 void AddSC_boss_janalai()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_janalai";
-    pNewScript->GetAI = &GetNewAIInstance<boss_janalaiAI>;
+    pNewScript->GetAI = &GetAI_boss_janalaiAI;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "npc_amanishi_hatcher";
-    pNewScript->GetAI = &GetNewAIInstance<npc_amanishi_hatcherAI>;
+    pNewScript->GetAI = &GetAI_npc_amanishi_hatcherAI;
     pNewScript->RegisterSelf();
-
-    RegisterSpellScript<HatchEggs>("spell_hatch_eggs");
 }

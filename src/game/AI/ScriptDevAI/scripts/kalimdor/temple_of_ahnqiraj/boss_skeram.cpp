@@ -28,7 +28,7 @@ EndScriptData */
 enum
 {
     SAY_AGGRO                   = -1531000,
-    SAY_SLAY                    = 11446,
+    SAY_SLAY                    = -1531001,
     SAY_DEATH                   = -1531002,
 
     SPELL_ARCANE_EXPLOSION      = 26192,
@@ -72,7 +72,6 @@ struct boss_skeramAI : public CombatAI
         AddCombatAction(SKERAM_TRUE_FULFILMENT, uint32(15) * IN_MILLISECONDS);
         AddCombatAction(SKERAM_EARTH_SHOCK, 1200u);
         AddCustomAction(SKERAM_BLINK_DELAY, true, [&]() { HandleBlinkDelay(); });
-        AddOnKillText(SAY_SLAY);
     }
 
     ScriptedInstance* m_instance;
@@ -107,6 +106,11 @@ struct boss_skeramAI : public CombatAI
         if (m_isImage)
             StopAttacking();
         DoCastSpellIfCan(nullptr, SPELL_BIRTH);
+    }
+
+    void KilledUnit(Unit* /*victim*/) override
+    {
+        DoScriptText(SAY_SLAY, m_creature);
     }
 
     void JustDied(Unit* /*killer*/) override
@@ -386,7 +390,7 @@ void AddSC_boss_skeram()
     newScript->GetAI = &GetNewAIInstance<boss_skeramAI>;
     newScript->RegisterSelf();
 
-    RegisterSpellScript<TrueFulfillment>("spell_true_fulfillment");
+    RegisterAuraScript<TrueFulfillment>("spell_true_fulfillment");
     RegisterSpellScript<InitializeImages>("spell_initialize_images");
     RegisterSpellScript<TeleportImage>("spell_teleport_image");
     RegisterSpellScript<InitializeImage>("spell_initialize_image");

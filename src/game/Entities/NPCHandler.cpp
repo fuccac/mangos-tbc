@@ -19,7 +19,7 @@
 #include "Common.h"
 #include "Tools/Language.h"
 #include "Database/DatabaseEnv.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
 #include "Log.h"
@@ -310,16 +310,14 @@ void WorldSession::HandleGossipHelloOpcode(WorldPacket& recv_data)
         return;
     }
 
-    // Stop the npc if moving
-    if (uint32 pauseTimer = pCreature->GetInteractionPauseTimer())
-        pCreature->GetMotionMaster()->PauseWaypoints(pauseTimer);
+    pCreature->GetMotionMaster()->PauseWaypoints();
 
     if (pCreature->isSpiritGuide())
         pCreature->SendAreaSpiritHealerQueryOpcode(_player);
 
     if (!sScriptDevAIMgr.OnGossipHello(_player, pCreature))
     {
-        _player->PrepareGossipMenu(pCreature, pCreature->GetDefaultGossipMenuId());
+        _player->PrepareGossipMenu(pCreature, pCreature->GetCreatureInfo()->GossipMenuId);
         _player->SendPreparedGossip(pCreature);
     }
 }
@@ -400,7 +398,8 @@ void WorldSession::SendSpiritResurrect() const
     WorldSafeLocsEntry const* corpseGrave = nullptr;
     Corpse* corpse = _player->GetCorpse();
     if (corpse)
-        corpseGrave = _player->GetMap()->GetGraveyardManager().GetClosestGraveYard(corpse->GetPositionX(), corpse->GetPositionY(), corpse->GetPositionZ(), corpse->GetMapId(), _player->GetTeam());
+        corpseGrave = sObjectMgr.GetClosestGraveYard(
+                          corpse->GetPositionX(), corpse->GetPositionY(), corpse->GetPositionZ(), corpse->GetMapId(), _player->GetTeam());
 
     // now can spawn bones
     _player->SpawnCorpseBones();
@@ -408,7 +407,8 @@ void WorldSession::SendSpiritResurrect() const
     // teleport to nearest from corpse graveyard, if different from nearest to player ghost
     if (corpseGrave)
     {
-        WorldSafeLocsEntry const* ghostGrave = _player->GetMap()->GetGraveyardManager().GetClosestGraveYard(_player->GetPositionX(), _player->GetPositionY(), _player->GetPositionZ(), _player->GetMapId(), _player->GetTeam());
+        WorldSafeLocsEntry const* ghostGrave = sObjectMgr.GetClosestGraveYard(
+                _player->GetPositionX(), _player->GetPositionY(), _player->GetPositionZ(), _player->GetMapId(), _player->GetTeam());
 
         if (corpseGrave != ghostGrave)
             _player->TeleportTo(corpseGrave->map_id, corpseGrave->x, corpseGrave->y, corpseGrave->z, corpseGrave->o);
@@ -501,7 +501,7 @@ void WorldSession::SendStablePet(ObjectGuid guid) const
     {
         data << uint32(pet->GetCharmInfo()->GetPetNumber());
         data << uint32(pet->GetEntry());
-        data << uint32(pet->GetLevel());
+        data << uint32(pet->getLevel());
         data << pet->GetName();                             // petname
         data << uint32(pet->GetLoyaltyLevel());             // loyalty
         data << uint8(0x01);                                // client slot 1 == current pet (0)
@@ -527,7 +527,7 @@ void WorldSession::SendStablePet(ObjectGuid guid) const
                     data << uint32(fields[3].GetUInt32());          // level
                     data << fields[4].GetString();                  // name
                     data << uint32(fields[5].GetUInt32());          // loyalty
-                    data << uint8(0x03);                            // slot
+                    data << uint8(0x01);       // slot
 
                     ++num;
                 } while (result->NextRow());
@@ -807,7 +807,7 @@ void WorldSession::HandleUnstablePet(WorldPacket& recv_data)
     }
 
     Pet* newpet = new Pet(HUNTER_PET);
-    if (!newpet->LoadPetFromDB(_player, newpet->GetPetSpawnPosition(_player), creature_id, petnumber))
+    if (!newpet->LoadPetFromDB(_player, creature_id, petnumber))
     {
         delete newpet;
         newpet = nullptr;
@@ -953,7 +953,7 @@ void WorldSession::HandleStableSwapPet(WorldPacket& recv_data)
 
     // summon unstabled pet
     Pet* newpet = new Pet;
-    if (!newpet->LoadPetFromDB(_player, newpet->GetPetSpawnPosition(_player), creature_id, pet_number))
+    if (!newpet->LoadPetFromDB(_player, creature_id, pet_number))
     {
         delete newpet;
 

@@ -57,7 +57,7 @@ std::string ObjectGuid::GetString() const
     str << " (";
     if (HasEntry())
         str << (IsPet() ? "Petnumber: " : "Entry: ") << GetEntry() << " ";
-    str << "Counter: " << GetCounter() << ")";
+    str << "Guid: " << GetCounter() << ")";
     return str.str();
 }
 

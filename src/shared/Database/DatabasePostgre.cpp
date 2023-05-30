@@ -18,13 +18,13 @@
 
 #ifdef DO_POSTGRESQL
 
-#include "Util/Util.h"
+#include "Util.h"
 #include "Policies/Singleton.h"
 #include "Platform/Define.h"
-#include "Multithreading/Threading.h"
+#include "Threading.h"
 #include "DatabaseEnv.h"
 #include "Database/SqlOperations.h"
-#include "Util/Timer.h"
+#include "Timer.h"
 
 size_t DatabasePostgre::db_count = 0;
 
@@ -43,6 +43,7 @@ DatabasePostgre::DatabasePostgre()
 
 DatabasePostgre::~DatabasePostgre()
 {
+
 }
 
 SqlConnection* DatabasePostgre::CreateConnection()

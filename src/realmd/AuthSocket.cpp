@@ -29,15 +29,14 @@
 #include "RealmList.h"
 #include "AuthSocket.h"
 #include "AuthCodes.h"
-#include "Auth/SRP6.h"
-#include "Util/CommonDefines.h"
+#include "SRP6/SRP6.h"
+#include "CommonDefines.h"
 
 #include <openssl/md5.h>
 #include <ctime>
-#include <memory>
 #include <utility>
 
-//#include "Util/Util.h" -- for commented utf8ToUpperOnlyLatin
+//#include "Util.h" -- for commented utf8ToUpperOnlyLatin
 
 extern DatabaseType LoginDatabase;
 
@@ -181,10 +180,6 @@ std::array<uint8, 16> VersionChallenge = { { 0xBA, 0xA3, 0x1E, 0x99, 0xA0, 0x0B,
 AuthSocket::AuthSocket(boost::asio::io_service& service, std::function<void (Socket*)> closeHandler)
     : Socket(service, std::move(closeHandler)), _status(STATUS_CHALLENGE), _build(0), _accountSecurityLevel(SEC_PLAYER), m_timeoutTimer(service)
 {
-}
-
-bool AuthSocket::Open()
-{
     m_timeoutTimer.expires_from_now(boost::posix_time::seconds(30));
     m_timeoutTimer.async_wait([&] (const boost::system::error_code& error)
     {
@@ -196,8 +191,6 @@ bool AuthSocket::Open()
         if (!IsClosed())
             Close();
     });
-
-    return Socket::Open();
 }
 
 /// Read the packet from the client
@@ -357,9 +350,6 @@ bool AuthSocket::_HandleLogonChallenge()
     ch->os[3] = '\0';
     m_os = (char*)ch->os;
     std::reverse(m_os.begin(), m_os.end());
-    ch->platform[3] = '\0';
-    m_platform = (char*)ch->platform;
-    std::reverse(m_platform.begin(), m_platform.end());
 
     m_locale.resize(sizeof(ch->country));
     m_locale.assign(ch->country, (ch->country + sizeof(ch->country)));
@@ -374,7 +364,6 @@ bool AuthSocket::_HandleLogonChallenge()
     LoginDatabase.escape_string(_safelogin);
     _safelocale = m_locale;
     LoginDatabase.escape_string(_safelocale);
-    LoginDatabase.escape_string(m_os);
 
     pkt << uint8(CMD_AUTH_LOGON_CHALLENGE);
     pkt << uint8(0x00);
@@ -431,7 +420,7 @@ bool AuthSocket::_HandleLogonChallenge()
             {
                 ///- If the account is banned, reject the logon attempt
                 QueryResult* banresult = LoginDatabase.PQuery("SELECT banned_at,expires_at FROM account_banned WHERE "
-                                         "account_id = %u AND active = 1 AND (expires_at > UNIX_TIMESTAMP() OR expires_at = banned_at)", fields[0].GetUInt32());
+                                         "account_id = %u AND active = 1 AND (expires_at > UNIX_TIMESTAMP() OR expires_at = banned_at)", fields[1].GetUInt32());
                 if (banresult)
                 {
                     if ((*banresult)[0].GetUInt64() == (*banresult)[1].GetUInt64())
@@ -460,12 +449,12 @@ bool AuthSocket::_HandleLogonChallenge()
                     pkt << uint8(AUTH_LOGON_SUCCESS);
 
                     // B may be calculated < 32B so we force minimal length to 32B
-                    pkt.append(srp.GetHostPublicEphemeral().AsByteArray(32));      // 32 bytes
+                    pkt.append(srp.GetHostPublicEphemeral().AsByteArray(32), 32);      // 32 bytes
                     pkt << uint8(1);
-                    pkt.append(srp.GetGeneratorModulo().AsByteArray());
+                    pkt.append(srp.GetGeneratorModulo().AsByteArray(), 1);
                     pkt << uint8(32);
-                    pkt.append(srp.GetPrime().AsByteArray(32));
-                    pkt.append(s.AsByteArray());// 32 bytes
+                    pkt.append(srp.GetPrime().AsByteArray(32), 32);
+                    pkt.append(s.AsByteArray(), s.GetNumBytes());// 32 bytes
                     pkt.append(VersionChallenge.data(), VersionChallenge.size());
                     uint8 securityFlags = 0;
 
@@ -595,9 +584,8 @@ bool AuthSocket::_HandleLogonProof()
         ///- Update the sessionkey, current ip and login time and reset number of failed logins in the account table for this account
         // No SQL injection (escaped user input) and IP address as received by socket
         const char* K_hex = srp.GetStrongSessionKey().AsHexStr();
-        LoginDatabase.PExecute("UPDATE account SET sessionkey = '%s', locale = '%s', failed_logins = 0, os = '%s', platform = '%s' WHERE username = '%s'", K_hex, _safelocale.c_str(), m_os.c_str(), m_platform.c_str(), _safelogin.c_str());
-        std::unique_ptr<QueryResult> loginfail(LoginDatabase.PQuery("SELECT id FROM account WHERE username = '%s'", _safelogin.c_str()));
-        if (loginfail)
+        LoginDatabase.PExecute("UPDATE account SET sessionkey = '%s', locale = '%s', failed_logins = 0 WHERE username = '%s'", K_hex, _safelocale.c_str(), _safelogin.c_str());
+        if (QueryResult* loginfail = LoginDatabase.PQuery("SELECT id FROM account WHERE username = '%s'", _safelogin.c_str()))
             LoginDatabase.PExecute("INSERT INTO account_logons(accountId,ip,loginTime,loginSource) VALUES('%u','%s',NOW(),'%u')", loginfail->Fetch()[0].GetUInt32(), m_address.c_str(), LOGIN_TYPE_REALMD);
         OPENSSL_free((void*)K_hex);
 
@@ -733,7 +721,7 @@ bool AuthSocket::_HandleReconnectChallenge()
     pkt << (uint8)  CMD_AUTH_RECONNECT_CHALLENGE;
     pkt << (uint8)  0x00;
     _reconnectProof.SetRand(16 * 8);
-    pkt.append(_reconnectProof.AsByteArray(16));        // 16 bytes random
+    pkt.append(_reconnectProof.AsByteArray(16), 16);        // 16 bytes random
     pkt.append(VersionChallenge.data(), VersionChallenge.size());
     Write((const char*)pkt.contents(), pkt.size());
     return true;
@@ -764,7 +752,7 @@ bool AuthSocket::_HandleReconnectProof()
     sha.UpdateBigNumbers(&t1, &_reconnectProof, &K, nullptr);
     sha.Finalize();
 
-    if (!memcmp(sha.GetDigest(), lp.R2, Sha1Hash::GetLength()))
+    if (!memcmp(sha.GetDigest(), lp.R2, SHA_DIGEST_LENGTH))
     {
         if (!VerifyVersion(lp.R1, sizeof(lp.R1), lp.R3, true))
         {
@@ -803,7 +791,7 @@ bool AuthSocket::_HandleRealmList()
     ///- Get the user id (else close the connection)
     // No SQL injection (escaped user name)
 
-    QueryResult* result = LoginDatabase.PQuery("SELECT id, gmlevel FROM account WHERE username = '%s'", _safelogin.c_str());
+    QueryResult* result = LoginDatabase.PQuery("SELECT id FROM account WHERE username = '%s'", _safelogin.c_str());
     if (!result)
     {
         sLog.outError("[ERROR] user %s tried to login and we cannot find him in the database.", _login.c_str());
@@ -812,7 +800,6 @@ bool AuthSocket::_HandleRealmList()
     }
 
     uint32 id = (*result)[0].GetUInt32();
-    uint8 accountSecurityLevel = (*result)[1].GetUInt8();
     delete result;
 
     ///- Update realm list if need
@@ -820,7 +807,7 @@ bool AuthSocket::_HandleRealmList()
 
     ///- Circle through realms in the RealmList and construct the return packet (including # of user characters in each realm)
     ByteBuffer pkt;
-    LoadRealmlist(pkt, id, accountSecurityLevel);
+    LoadRealmlist(pkt, id);
 
     ByteBuffer hdr;
     hdr << (uint8) CMD_REALM_LIST;
@@ -831,7 +818,7 @@ bool AuthSocket::_HandleRealmList()
     return true;
 }
 
-void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 securityLevel)
+void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid)
 {
     switch (_build)
     {
@@ -840,7 +827,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 securityLev
         case 6141:                                          // 1.12.3
         {
             pkt << uint32(0);                               // unused value
-            pkt << uint8(getEligibleRealmCount(securityLevel));
+            pkt << uint8(sRealmList.size());
 
             for (const auto& i : sRealmList)
             {
@@ -864,10 +851,6 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 securityLev
                     buildInfo = &i.second.realmBuildInfo;
 
                 RealmFlags realmflags = i.second.realmflags;
-
-                // Don't display higher security realms for players.
-                if (!securityLevel && i.second.allowedSecurityLevel > 0)
-                    continue;
 
                 // 1.x clients not support explicitly REALM_FLAG_SPECIFYBUILD, so manually form similar name as show in more recent clients
                 std::string name = i.first;
@@ -905,7 +888,7 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 securityLev
         default:                                            // and later
         {
             pkt << uint32(0);                               // unused value
-            pkt << uint16(getEligibleRealmCount(securityLevel));
+            pkt << uint16(sRealmList.size());
 
             for (const auto& i : sRealmList)
             {
@@ -928,10 +911,6 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 securityLev
                 if (!buildInfo)
                     buildInfo = &i.second.realmBuildInfo;
 
-                // Don't display higher security realms for players.
-                if (!securityLevel && i.second.allowedSecurityLevel > 0)
-                    continue;
-
                 uint8 lock = (i.second.allowedSecurityLevel > _accountSecurityLevel) ? 1 : 0;
 
                 RealmFlags realmFlags = i.second.realmflags;
@@ -940,8 +919,8 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 securityLev
                 if (!ok_build)
                     realmFlags = RealmFlags(realmFlags | REALM_FLAG_OFFLINE);
 
-                if (!buildInfo)
-                    realmFlags = RealmFlags(realmFlags & ~REALM_FLAG_SPECIFYBUILD);
+                //if (!buildInfo) // always false since updated 10 lines above if null. ToDo: fix
+                //    realmFlags = RealmFlags(realmFlags & ~REALM_FLAG_SPECIFYBUILD);
 
                 pkt << uint8(i.second.icon);               // realm type (this is second column in Cfg_Configs.dbc)
                 pkt << uint8(lock);                         // flags, if 0x01, then realm locked
@@ -966,16 +945,6 @@ void AuthSocket::LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 securityLev
             break;
         }
     }
-}
-
-uint8 AuthSocket::getEligibleRealmCount(uint8 accountSecurityLevel)
-{
-    uint8 size = 0;
-    for (const auto& i : sRealmList)
-        if (i.second.allowedSecurityLevel <= accountSecurityLevel)
-            size++;
-
-    return size;
 }
 
 /// Resume patch transfer

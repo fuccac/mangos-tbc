@@ -20,9 +20,9 @@
 #include "Log.h"
 #include "Policies/Singleton.h"
 #include "Config/Config.h"
-#include "Util/Util.h"
-#include "Util/ByteBuffer.h"
-#include "Util/ProgressBar.h"
+#include "Util.h"
+#include "ByteBuffer.h"
+#include "ProgressBar.h"
 
 #include <fstream>
 #include <iostream>
@@ -54,7 +54,6 @@ LogFilterData logFilterData[LOG_FILTER_COUNT] =
     { "pathfinding",         "LogFilter_Pathfinding",        true  },
     { "map_loading",         "LogFilter_MapLoading",         true  },
     { "event_ai_dev",        "LogFilter_EventAiDev",         true  },
-    { "",                    "",                             true  },
     { "db_scripts_dev",      "LogFilter_DbScriptDev",        true  },
 };
 
@@ -267,10 +266,8 @@ void Log::Initialize()
     charLogfile = openLogFile("CharLogFile", "CharLogTimestamp", "a");
     dberLogfile = openLogFile("DBErrorLogFile", nullptr, "a");
     eventAiErLogfile = openLogFile("EventAIErrorLogFile", nullptr, "a");
-    scriptErrLogFile = openLogFile("SD2ErrorLogFile", nullptr, "a");
     raLogfile = openLogFile("RaLogFile", nullptr, "a");
     worldLogfile = openLogFile("WorldLogFile", "WorldLogTimestamp", "a");
-    scriptErrLogFile = openLogFile("SD2ErrorLogFile", nullptr, "a");
     customLogFile = openLogFile("CustomLogFile", nullptr, "a");
 
     // Main log file settings
@@ -354,9 +351,7 @@ std::string Log::GetTimestampStr()
     //       MM     minutes (2 digits 00-59)
     //       SS     seconds (2 digits 00-59)
     char buf[20];
-    int snRes = snprintf(buf, 20, "%04d-%02d-%02d_%02d-%02d-%02d", aTm->tm_year + 1900, aTm->tm_mon + 1, aTm->tm_mday, aTm->tm_hour, aTm->tm_min, aTm->tm_sec);
-    if (snRes < 0 || snRes >= sizeof(buf))
-        return "";
+    snprintf(buf, 20, "%04d-%02d-%02d_%02d-%02d-%02d", aTm->tm_year + 1900, aTm->tm_mon + 1, aTm->tm_mday, aTm->tm_hour, aTm->tm_min, aTm->tm_sec);
     return std::string(buf);
 }
 

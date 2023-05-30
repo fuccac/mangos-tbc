@@ -32,7 +32,7 @@ enum
     SAY_REINFORCEMENTS_2        = -1409014,
     SAY_HAMMER                  = -1409015,
     SAY_WRATH                   = -1409016,
-    SAY_KILL                    = 7626,
+    SAY_KILL                    = -1409017,
     SAY_MAGMABURST              = -1409018,
 
     SPELL_WRATH_OF_RAGNAROS     = 20566,
@@ -84,7 +84,6 @@ struct boss_ragnarosAI : public CombatAI
         AddCombatAction(RAGNAROS_MIGHT_OF_RAGNAROS, 11000u);
         AddCombatAction(RAGNAROS_MAGMA_BLAST, 2000u);
         AddCombatAction(RAGNAROS_LAVA_BURST, uint32(20 * IN_MILLISECONDS));
-        AddOnKillText(SAY_KILL);
         m_bHasAggroYelled = false;
     }
 
@@ -122,6 +121,17 @@ struct boss_ragnarosAI : public CombatAI
         DespawnGuids(m_spawns);
     }
 
+    void KilledUnit(Unit* victim) override
+    {
+        if (victim->GetTypeId() != TYPEID_PLAYER)
+            return;
+
+        if (urand(0, 3))
+            return;
+
+        DoScriptText(SAY_KILL, m_creature);
+    }
+
     void JustDied(Unit* /*killer*/) override
     {
         if (m_instance)
@@ -145,8 +155,8 @@ struct boss_ragnarosAI : public CombatAI
         // Reset flag if Ragnaros had been submerged
         if (m_phase != PHASE_EMERGED)
             DoCastSpellIfCan(m_creature, SPELL_RAGNA_EMERGE);
-        if (m_creature->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE))
-            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        if (m_creature->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE))
+            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
         ScriptedAI::EnterEvadeMode();
     }
@@ -218,7 +228,7 @@ struct boss_ragnarosAI : public CombatAI
             {
                 // Submerge and attack again after 90 secs
                 DoCastSpellIfCan(m_creature, SPELL_RAGNA_SUBMERGE_VISUAL, CAST_TRIGGERED);
-                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
                 // Say dependend if first time or not
                 DoScriptText(!m_bHasSubmergedOnce ? SAY_REINFORCEMENTS_1 : SAY_REINFORCEMENTS_2, m_creature);
@@ -260,7 +270,7 @@ struct boss_ragnarosAI : public CombatAI
             case PHASE_EMERGING:
             {
                 DoCastSpellIfCan(m_creature, SPELL_RAGNA_EMERGE);
-                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
                 m_phase = PHASE_EMERGED;
                 ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 3 * MINUTE * IN_MILLISECONDS);
                 ResetCombatAction(RAGNAROS_WRATH_OF_RAGNAROS, 20000);

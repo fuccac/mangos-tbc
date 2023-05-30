@@ -101,9 +101,11 @@ struct boss_nefarianAI : public CombatAI
         AddCustomAction(NEFARIAN_INITIAL_YELL, true, [&]() { HandleInitialYell(); });
         AddCustomAction(NEFARIAN_ATTACK_START, true, [&]() { HandleAttackStart(); });
         SetReactState(REACT_PASSIVE);
+        //m_creature->SetLevitate(true);
         m_creature->SetHover(true);
         SetMeleeEnabled(false);
         SetCombatMovement(false);
+        // m_creature->SetByteValue(UNIT_FIELD_BYTES_1, 3, UNIT_BYTE1_FLAG_ALWAYS_STAND);
     }
 
     ScriptedInstance* m_instance;
@@ -154,12 +156,18 @@ struct boss_nefarianAI : public CombatAI
     void StartLanding()
     {
         m_creature->SetWalk(false);
-        m_creature->GetMotionMaster()->MoveWaypoint(0, FORCED_MOVEMENT_NONE, true);
+        auto wpPath = sWaypointMgr.GetPathFromOrigin(m_creature->GetEntry(), m_creature->GetGUIDLow(), 0, PATH_FROM_ENTRY);
+        std::vector<G3D::Vector3> path;
+        for (auto& data : *wpPath)
+        {
+            path.emplace_back(data.second.x, data.second.y, data.second.z);
+        }
+        m_creature->GetMotionMaster()->MovePath(path, FORCED_MOVEMENT_NONE, true);
     }
 
     void MovementInform(uint32 type, uint32 pointId) override
     {
-        if (type != WAYPOINT_MOTION_TYPE)
+        if (type != PATH_MOTION_TYPE)
             return;
 
         switch (pointId)
@@ -167,13 +175,12 @@ struct boss_nefarianAI : public CombatAI
             case 1:
                 DoScriptText(SAY_AGGRO, m_creature);
                 break;
-            case 9:
+            case 8:
                 // Stop flying and land
                 m_creature->HandleEmote(EMOTE_ONESHOT_LAND);
                 m_creature->SetLevitate(false);
                 m_creature->SetHover(false);
                 ResetTimer(NEFARIAN_ATTACK_START, 4000);
-                m_creature->GetMotionMaster()->MoveIdle();
                 break;
         }
     }
@@ -191,7 +198,7 @@ struct boss_nefarianAI : public CombatAI
         SetCombatMovement(true);
         m_creature->SetInCombatWithZone();
         // Make attackable and attack
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         if (Unit* target = m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0))
             m_creature->AI()->AttackStart(target);
         ResetCombatAction(NEFARIAN_SHADOW_FLAME, 12000u);

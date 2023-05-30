@@ -60,9 +60,9 @@ enum PrisonerActions
     PRISONER_CREDIT,
 };
 
-struct boss_yorAI : public ScriptedAI
+struct boss_yorAI : public ScriptedAI, public CombatActions
 {
-    boss_yorAI(Creature* creature) : ScriptedAI(creature, YOR_COMBAT_ACTION_MAX)
+    boss_yorAI(Creature* creature) : ScriptedAI(creature), CombatActions(YOR_COMBAT_ACTION_MAX)
     {
         AddCustomAction(YOR_ATTACK, true, [&]
         {
@@ -190,8 +190,6 @@ bool GOUse_go_stasis_chamber_shaffar(Player* player, GameObject* go)
 
 enum
 {
-    SPELL_BLUE_BANISH_STATE = 39650,
-
     SAY_RELEASED_1 = -1557036,
     SAY_RELEASED_2 = -1557037,
 
@@ -200,9 +198,9 @@ enum
     SPELL_QID_10977 = 39660,
 };
 
-struct npc_ethereum_prisoner_dungeonAI : public ScriptedAI
+struct npc_ethereum_prisoner_dungeonAI : public ScriptedAI, public CombatActions
 {
-    npc_ethereum_prisoner_dungeonAI(Creature* creature) : ScriptedAI(creature, 0)
+    npc_ethereum_prisoner_dungeonAI(Creature* creature) : ScriptedAI(creature), CombatActions(0)
     {
         AddCustomAction(PRISONER_CREDIT, true, [&]
         {
@@ -221,7 +219,7 @@ struct npc_ethereum_prisoner_dungeonAI : public ScriptedAI
     void JustRespawned() override
     {
         DoCastSpellIfCan(nullptr, SPELL_C_C_D, (CAST_AURA_NOT_PRESENT | CAST_TRIGGERED));
-        DoCastSpellIfCan(nullptr, SPELL_BLUE_BANISH_STATE, (CAST_AURA_NOT_PRESENT | CAST_TRIGGERED));
+        DoCastSpellIfCan(nullptr, SPELL_PURPLE_BANISH_STATE, (CAST_AURA_NOT_PRESENT | CAST_TRIGGERED));
         if (m_stasisGuid)
             if (GameObject* stasis = m_creature->GetMap()->GetGameObject(m_stasisGuid))
                 stasis->ResetDoorOrButton();
@@ -236,7 +234,7 @@ struct npc_ethereum_prisoner_dungeonAI : public ScriptedAI
         if (go)
             m_stasisGuid = go->GetObjectGuid();
         m_creature->RemoveAurasDueToSpell(SPELL_C_C_D);
-        m_creature->RemoveAurasDueToSpell(SPELL_BLUE_BANISH_STATE);
+        m_creature->RemoveAurasDueToSpell(SPELL_PURPLE_BANISH_STATE);
         m_creature->UpdateEntry(NPC_AMBASSADOR_PAXIVI);
         float angle = m_unit->GetAngle(player);
         m_creature->SetFacingTo(angle);

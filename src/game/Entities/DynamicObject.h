@@ -32,7 +32,6 @@ enum DynamicObjectType
 };
 
 struct SpellEntry;
-struct AuraScript;
 
 class DynamicObject : public WorldObject
 {
@@ -47,7 +46,7 @@ class DynamicObject : public WorldObject
         void Delete();
         uint32 GetSpellId() const { return m_spellId; }
         SpellEffectIndex GetEffIndex() const { return m_effIndex; }
-        uint32 GetDuration() const { return std::max(int64((m_aliveTime - GetMap()->GetCurrentClockTime()).count()), int64(0)); }
+        uint32 GetDuration() const { return m_aliveDuration; }
         ObjectGuid const& GetOwnerGuid() const override { return GetCasterGuid(); }
         void SetOwnerGuid(ObjectGuid guid) override { SetCasterGuid(guid); }
         ObjectGuid const& GetCasterGuid() const { return GetGuidValue(DYNAMICOBJECT_CASTER); }
@@ -83,15 +82,13 @@ class DynamicObject : public WorldObject
     protected:
         uint32 m_spellId;
         SpellEffectIndex m_effIndex;
-        TimePoint m_aliveTime;
+        int32 m_aliveDuration;
         float m_radius;                                     // radius apply persistent effect, 0 = no persistent effect
         bool m_positive;
         GuidSet m_affected;
         SpellTarget m_target;
         int32 m_damage;
         int32 m_basePoints;
-
-        AuraScript* m_auraScript;
     private:
         GridReference<DynamicObject> m_gridRef;
 };

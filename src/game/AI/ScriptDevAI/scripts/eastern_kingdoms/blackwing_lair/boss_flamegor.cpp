@@ -114,11 +114,15 @@ struct boss_flamegorAI : public CombatAI
         }
     }
 };
+UnitAI* GetAI_boss_flamegor(Creature* creature)
+{
+    return new boss_flamegorAI(creature);
+}
 
 void AddSC_boss_flamegor()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_flamegor";
-    pNewScript->GetAI = &GetNewAIInstance<boss_flamegorAI>;
+    pNewScript->GetAI = &GetAI_boss_flamegor;
     pNewScript->RegisterSelf();
 }

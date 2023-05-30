@@ -50,10 +50,6 @@ enum
     QUEST_ENTRY_DIVERSION           = 10283,
     QUEST_ENTRY_ESCAPE              = 10284,
     QUEST_ENTRY_RETURN              = 10285,
-
-    // RP scripts
-    NPC_BARTOLO                     = 20365,
-    NPC_BEGGAR                      = 20432,
 };
 
 static const float afInstanceLoc[][4] =
@@ -89,8 +85,6 @@ class instance_old_hillsbrad : public ScriptedInstance
         void Load(const char* chrIn) override;
 
         void Update(const uint32 diff) override;
-
-        TimePoint m_beggarScriptTime;
 
     protected:
         void HandleThrallRelocation();

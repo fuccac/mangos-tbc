@@ -23,7 +23,7 @@ EndScriptData */
 
 #include "AI/ScriptDevAI/include/sc_common.h"
 #include "black_temple.h"
-#include "AI/ScriptDevAI/base/CombatAI.h"
+#include "AI/ScriptDevAI/base/TimerAI.h"
 
 enum
 {
@@ -169,16 +169,17 @@ enum AkamaActions
 ## npc_akama
 ######*/
 
-struct npc_akamaAI : public CombatAI, private DialogueHelper
+struct npc_akamaAI : public ScriptedAI, public CombatActions, private DialogueHelper
 {
-    npc_akamaAI(Creature* creature) : CombatAI(creature, AKAMA_ACTION_MAX),
+    npc_akamaAI(Creature* creature) : ScriptedAI(creature), CombatActions(AKAMA_ACTION_MAX),
         DialogueHelper(aOutroDialogue)
     {
         m_instance = static_cast<instance_black_temple*>(creature->GetInstanceData());
         InitializeDialogueHelper(m_instance);
-        AddTimerlessCombatAction(AKAMA_ACTION_LOW_HEALTH, true);
-        AddCombatAction(AKAMA_ACTION_DESTRUCTIVE_POISON, true);
-        AddCombatAction(AKAMA_ACTION_CHAIN_LIGHTNING, true);
+        AddCombatAction(AKAMA_ACTION_LOW_HEALTH, 0u);
+        AddCombatAction(AKAMA_ACTION_DESTRUCTIVE_POISON, 0u);
+        AddCombatAction(AKAMA_ACTION_CHAIN_LIGHTNING, 0u);
+        Reset();
     }
 
     instance_black_temple* m_instance;
@@ -189,7 +190,13 @@ struct npc_akamaAI : public CombatAI, private DialogueHelper
 
     void Reset() override
     {
-        CombatAI::Reset();
+        for (uint32 i = 0; i < AKAMA_ACTION_MAX; ++i)
+            SetActionReadyStatus(i, false);
+
+        SetActionReadyStatus(AKAMA_ACTION_LOW_HEALTH, true);
+
+        DisableTimer(AKAMA_ACTION_DESTRUCTIVE_POISON);
+        DisableTimer(AKAMA_ACTION_CHAIN_LIGHTNING);
 
         SetCombatMovement(false);
 
@@ -197,7 +204,7 @@ struct npc_akamaAI : public CombatAI, private DialogueHelper
 
         m_lBrokenGUIDList.clear();
 
-        DoCastSpellIfCan(nullptr, SPELL_STEALTH);
+        DoCastSpellIfCan(m_creature, SPELL_STEALTH);
         m_creature->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
     }
 
@@ -345,7 +352,7 @@ struct npc_akamaAI : public CombatAI, private DialogueHelper
                         shade->SetStandState(UNIT_STAND_STATE_STAND);
                     for (ObjectGuid guid : m_instance->GetChannelersGuidList())
                         if (Creature* channeler = m_creature->GetMap()->GetCreature(guid))
-                            channeler->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+                            channeler->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
                     for (ObjectGuid guid : m_instance->GetGeneratorGuidVector()) // notify generators to start spawning
                         if (Creature* generator = m_creature->GetMap()->GetCreature(guid))
@@ -406,30 +413,47 @@ struct npc_akamaAI : public CombatAI, private DialogueHelper
         }
     }
 
-    void ExecuteAction(uint32 action) override
+    void ExecuteActions()
     {
-        switch (action)
+        if (!CanExecuteCombatAction())
+            return;
+
+        for (uint32 i = 0; i < AKAMA_ACTION_MAX; ++i)
         {
-            case AKAMA_ACTION_LOW_HEALTH:
+            if (GetActionReadyStatus(i))
             {
-                if (m_creature->GetHealthPercent() < 15.0f)
+                switch (i)
                 {
-                    DoScriptText(SAY_LOW_HEALTH, m_creature);
-                    SetActionReadyStatus(action, false);
+                    case AKAMA_ACTION_LOW_HEALTH:
+                    {
+                        if (m_creature->GetHealthPercent() < 15.0f)
+                        {
+                            DoScriptText(SAY_LOW_HEALTH, m_creature);
+                            SetActionReadyStatus(i, false);
+                        }
+                        continue;
+                    }
+                    case AKAMA_ACTION_DESTRUCTIVE_POISON:
+                    {
+                        if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_DESTRUCTIVE_POISON) == CAST_OK)
+                        {
+                            ResetTimer(i, GetSubsequentActionTimer(AkamaActions(i)));
+                            SetActionReadyStatus(i, false);
+                            return;
+                        }
+                        continue;
+                    }
+                    case AKAMA_ACTION_CHAIN_LIGHTNING:
+                    {
+                        if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_CHAIN_LIGHTNING) == CAST_OK)
+                        {
+                            ResetTimer(i, GetSubsequentActionTimer(AkamaActions(i)));
+                            SetActionReadyStatus(i, false);
+                            return;
+                        }
+                        continue;
+                    }
                 }
-                return;
-            }
-            case AKAMA_ACTION_DESTRUCTIVE_POISON:
-            {
-                if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_DESTRUCTIVE_POISON) == CAST_OK)
-                    ResetCombatAction(action, GetSubsequentActionTimer(AkamaActions(action)));
-                return;
-            }
-            case AKAMA_ACTION_CHAIN_LIGHTNING:
-            {
-                if (DoCastSpellIfCan(m_creature->GetVictim(), SPELL_CHAIN_LIGHTNING) == CAST_OK)
-                    ResetCombatAction(action, GetSubsequentActionTimer(AkamaActions(action)));
-                return;
             }
         }
     }
@@ -499,7 +523,7 @@ struct boss_shade_of_akamaAI : public ScriptedAI
     void Reset() override
     {
         SetCombatMovement(false);
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         m_creature->HandleEmote(EMOTE_STATE_STUN);
     }
 
@@ -546,7 +570,7 @@ struct boss_shade_of_akamaAI : public ScriptedAI
         // Set in combat with Akama
         if (Creature* akama = m_instance->GetSingleCreatureFromStorage(NPC_AKAMA_SHADE))
         {
-            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
             // Shade should move to Akama, not the other way around
             m_creature->AI()->SendAIEvent(AI_EVENT_CUSTOM_B, m_creature, akama);
@@ -557,6 +581,11 @@ struct boss_shade_of_akamaAI : public ScriptedAI
     {
         if (spell->Id == SPELL_AKAMA_SOUL_CHANNEL)
             m_creature->GetMotionMaster()->MovePoint(1, akamaWaypoints[1].x, akamaWaypoints[1].y, akamaWaypoints[1].z);
+    }
+
+    void EnterEvadeMode() override
+    {
+        ScriptedAI::EnterEvadeMode();
     }
 
     void UpdateAI(const uint32 /*diff*/) override
@@ -589,7 +618,7 @@ struct mob_ashtongue_channelerAI : public ScriptedAI
     {
         m_uiBanishTimer = 5000;
 
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
     }
 
     void JustDied(Unit* /*pKiller*/) override
@@ -659,7 +688,7 @@ struct mob_ashtongue_sorcererAI : public ScriptedAI
     void UpdateAI(const uint32 /*uiDiff*/) override {}
 };
 
-struct npc_creature_generatorAI : public ScriptedAI
+struct npc_creature_generatorAI : public ScriptedAI, public TimerManager
 {
     npc_creature_generatorAI(Creature* creature) : ScriptedAI(creature), m_spawn(false), m_left(creature->GetPositionY() > 400.f)
     {
@@ -774,39 +803,64 @@ struct npc_creature_generatorAI : public ScriptedAI
 
     void UpdateAI(const uint32 diff) override
     {
-        ScriptedAI::UpdateAI(diff);
+        UpdateTimers(diff);
 
         if (m_spawn)
             TrySummoning();
     }
 };
 
+UnitAI* GetAI_npc_akama_shade(Creature* creature)
+{
+    return new npc_akamaAI(creature);
+}
+
+UnitAI* GetAI_boss_shade_of_akama(Creature* creature)
+{
+    return new boss_shade_of_akamaAI(creature);
+}
+
+UnitAI* GetAI_mob_ashtongue_channeler(Creature* creature)
+{
+    return new mob_ashtongue_channelerAI(creature);
+}
+
+UnitAI* GetAI_mob_ashtongue_sorcerer(Creature* creature)
+{
+    return new mob_ashtongue_sorcererAI(creature);
+}
+
+UnitAI* GetAI_npc_creature_generator(Creature* creature)
+{
+    return new npc_creature_generatorAI(creature);
+}
+
 void AddSC_boss_shade_of_akama()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "npc_akama_shade";
-    pNewScript->GetAI = &GetNewAIInstance<npc_akamaAI>;
+    pNewScript->GetAI = &GetAI_npc_akama_shade;
     pNewScript->pGossipHello = &GossipHello_npc_akama;
     pNewScript->pGossipSelect = &GossipSelect_npc_akama;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "boss_shade_of_akama";
-    pNewScript->GetAI = &GetNewAIInstance<boss_shade_of_akamaAI>;
+    pNewScript->GetAI = &GetAI_boss_shade_of_akama;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "mob_ashtongue_channeler";
-    pNewScript->GetAI = &GetNewAIInstance<mob_ashtongue_channelerAI>;
+    pNewScript->GetAI = &GetAI_mob_ashtongue_channeler;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "mob_ashtongue_sorcerer";
-    pNewScript->GetAI = &GetNewAIInstance<mob_ashtongue_sorcererAI>;
+    pNewScript->GetAI = &GetAI_mob_ashtongue_sorcerer;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "npc_creature_generator";
-    pNewScript->GetAI = &GetNewAIInstance<npc_creature_generatorAI>;
+    pNewScript->GetAI = &GetAI_npc_creature_generator;
     pNewScript->RegisterSelf();
 }

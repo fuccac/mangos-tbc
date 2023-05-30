@@ -121,10 +121,15 @@ struct boss_magmadarAI : public CombatAI
     }
 };
 
+UnitAI* GetAI_boss_magmadar(Creature* creature)
+{
+    return new boss_magmadarAI(creature);
+}
+
 void AddSC_boss_magmadar()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_magmadar";
-    pNewScript->GetAI = &GetNewAIInstance<boss_magmadarAI>;
+    pNewScript->GetAI = &GetAI_boss_magmadar;
     pNewScript->RegisterSelf();
 }

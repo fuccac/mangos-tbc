@@ -15,209 +15,124 @@
  */
 
 /* ScriptData
-SDName: Instance_Magisters_Terrace
-SD%Complete: 80
-SDComment:
-SDCategory: Magister's Terrace
+SDName: Magisters_Terrace
+SD%Complete: 100
+SDComment: Quest support: 11490(post-event)
+SDCategory: Magisters Terrace
 EndScriptData */
+
+/* ContentData
+npc_kalecgos
+EndContentData */
 
 #include "AI/ScriptDevAI/include/sc_common.h"
 #include "magisters_terrace.h"
 
-/*
-0  - Selin Fireheart
-1  - Vexallus
-2  - Priestess Delrissa
-3  - Kael'thas Sunstrider
-*/
+/*######
+## npc_kalecgos
+######*/
 
-instance_magisters_terrace::instance_magisters_terrace(Map* pMap) : ScriptedInstance(pMap), m_kalecgosOrbHandled(false)
+enum
 {
-    Initialize();
-}
+    SPELL_TRANSFORM_TO_KAEL     = 44670,
+    SPELL_ORB_KILL_CREDIT       = 46307,
+    NPC_KALECGOS                = 24848,                    // human form entry
 
-void instance_magisters_terrace::Initialize()
-{
-    memset(&m_auiEncounter, 0, sizeof(m_auiEncounter));
-}
+    MAP_ID_MAGISTER             = 585,
 
-void instance_magisters_terrace::OnCreatureCreate(Creature* pCreature)
+    SAY_SPAWN                   = -1585032,
+};
+
+static const float afKaelLandPoint[4] = {200.36f, -270.77f, -8.73f, 0.01f};
+
+// This is friendly keal that appear after used Orb.
+// If we assume DB handle summon, summon appear somewhere outside the platform where Orb is
+struct npc_kalecgosAI : public ScriptedAI
 {
-    switch (pCreature->GetEntry())
+    npc_kalecgosAI(Creature* pCreature) : ScriptedAI(pCreature) { Reset(); }
+
+    uint32 m_uiTransformTimer;
+
+    void Reset() override
     {
-        case NPC_SELIN_FIREHEART:
-        case NPC_DELRISSA:
-        case NPC_KALECGOS_DRAGON:
-        case NPC_KAELTHAS:
-        case NPC_SCRYERS_BUNNY:
-        // insert Delrissa adds here, for better handling
-        case NPC_KAGANI:
-        case NPC_ELLRYS:
-        case NPC_ERAMAS:
-        case NPC_YAZZAI:
-        case NPC_SALARIS:
-        case NPC_GARAXXAS:
-        case NPC_APOKO:
-        case NPC_ZELFAN:
-        case NPC_SLIVER:
-            m_npcEntryGuidStore[pCreature->GetEntry()] = pCreature->GetObjectGuid();
-            break;
-        case NPC_FEL_CRYSTAL:
-            m_lFelCrystalGuid.push_back(pCreature->GetObjectGuid());
-            break;
-    }
-}
-
-void instance_magisters_terrace::OnObjectCreate(GameObject* pGo)
-{
-    switch (pGo->GetEntry())
-    {
-        case GO_VEXALLUS_DOOR:
-            if (m_auiEncounter[TYPE_VEXALLUS] == DONE)
-                pGo->SetGoState(GO_STATE_ACTIVE);
-            break;
-        case GO_SELIN_DOOR:
-            if (m_auiEncounter[TYPE_SELIN] == DONE)
-                pGo->SetGoState(GO_STATE_ACTIVE);
-            break;
-        case GO_DELRISSA_DOOR:
-            if (m_auiEncounter[TYPE_DELRISSA] == DONE)
-                pGo->SetGoState(GO_STATE_ACTIVE);
-            break;
-        case GO_SELIN_ENCOUNTER_DOOR:
-        case GO_KAEL_DOOR:
-            break;
-        case GO_ESCAPE_QUEL_DANAS:
-            if (m_auiEncounter[TYPE_KAELTHAS] == DONE)
-                pGo->SetGoState(GO_STATE_ACTIVE);
-            break;
-
-        default:
+        // Check the map id because the same creature entry is involved in other scripted event in other instance
+        if (m_creature->GetMapId() != MAP_ID_MAGISTER)
             return;
+
+        m_uiTransformTimer = 0;
+
+        // Move the dragon to landing point
+        m_creature->GetMotionMaster()->MovePoint(1, afKaelLandPoint[0], afKaelLandPoint[1], afKaelLandPoint[2]);
     }
-    m_goEntryGuidStore[pGo->GetEntry()] = pGo->GetObjectGuid();
-}
 
-void instance_magisters_terrace::SetData(uint32 uiType, uint32 uiData)
-{
-    switch (uiType)
+    void JustRespawned() override
     {
-        case TYPE_SELIN:
-            if (uiData == DONE)
-                DoUseDoorOrButton(GO_SELIN_DOOR);
-            if (uiData == FAIL)
-            {
-                // Reset crystals - respawn and kill is handled by creature linking
-                for (GuidList::const_iterator itr = m_lFelCrystalGuid.begin(); itr != m_lFelCrystalGuid.end(); ++itr)
-                {
-                    if (Creature* pTemp = instance->GetCreature(*itr))
-                    {
-                        if (!pTemp->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE))
-                            pTemp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        ScriptedAI::JustRespawned();
+        DoScriptText(SAY_SPAWN, m_creature);
+    }
 
-                        if (pTemp->IsAlive())
-                        {
-                            if (pTemp->IsInCombat())
-                            {
-                                pTemp->ForcedDespawn();
-                                pTemp->Respawn();
-                            }
-                            else
-                                pTemp->CastSpell(nullptr, SPELL_FEL_CRYSTAL_VISUAL, TRIGGERED_NONE);
-                        }
-                        else
-                            pTemp->Respawn();
-                    }
+    void MovementInform(uint32 uiType, uint32 uiPointId) override
+    {
+        if (uiType != POINT_MOTION_TYPE)
+            return;
+
+        if (uiPointId)
+        {
+            m_creature->SetLevitate(false);
+            m_creature->SetFacingTo(afKaelLandPoint[3]);
+            m_uiTransformTimer = MINUTE * IN_MILLISECONDS;
+        }
+    }
+
+    void UpdateAI(const uint32 uiDiff) override
+    {
+        if (m_uiTransformTimer)
+        {
+            if (m_uiTransformTimer <= uiDiff)
+            {
+                // Transform and update entry, now ready for quest/read gossip
+                if (DoCastSpellIfCan(m_creature, SPELL_TRANSFORM_TO_KAEL) == CAST_OK)
+                {
+                    DoCastSpellIfCan(m_creature, SPELL_ORB_KILL_CREDIT, CAST_TRIGGERED);
+                    m_creature->UpdateEntry(NPC_KALECGOS);
+
+                    m_uiTransformTimer = 0;
                 }
             }
-            if (uiData == IN_PROGRESS)
-            {
-                // Stop channeling when the fight starts
-                for (GuidList::const_iterator itr = m_lFelCrystalGuid.begin(); itr != m_lFelCrystalGuid.end(); ++itr)
-                {
-                    if (Creature* pTemp = instance->GetCreature(*itr))
-                        pTemp->InterruptNonMeleeSpells(false);
-                }
-            }
-            DoUseDoorOrButton(GO_SELIN_ENCOUNTER_DOOR);
-            m_auiEncounter[uiType] = uiData;
-            break;
-        case TYPE_VEXALLUS:
-            if (uiData == DONE)
-                DoUseDoorOrButton(GO_VEXALLUS_DOOR);
-            m_auiEncounter[uiType] = uiData;
-            break;
-        case TYPE_DELRISSA:
-            if (uiData == DONE)
-                DoUseDoorOrButton(GO_DELRISSA_DOOR);
-            m_auiEncounter[uiType] = uiData;
-            break;
-        case TYPE_KAELTHAS:
-            DoUseDoorOrButton(GO_KAEL_DOOR);
-            if (uiData == DONE)
-                DoToggleGameObjectFlags(GO_ESCAPE_QUEL_DANAS, GO_FLAG_NO_INTERACT, false);
-            m_auiEncounter[uiType] = uiData;
-            break;
+            else
+                m_uiTransformTimer -= uiDiff;
+        }
     }
+};
 
-    if (uiData == DONE)
-    {
-        OUT_SAVE_INST_DATA;
-
-        std::ostringstream saveStream;
-        saveStream << m_auiEncounter[0] << " " << m_auiEncounter[1] << " " << m_auiEncounter[2] << " " << m_auiEncounter[3];
-
-        m_strInstData = saveStream.str();
-
-        SaveToDB();
-        OUT_SAVE_INST_DATA_COMPLETE;
-    }
-}
-
-void instance_magisters_terrace::StartCrystalVisual()
+UnitAI* GetAI_npc_kalecgos(Creature* pCreature)
 {
-    for (GuidList::const_iterator itr = m_lFelCrystalGuid.begin(); itr != m_lFelCrystalGuid.end(); ++itr)
-    {
-        if (Creature* pTemp = instance->GetCreature(*itr))
-            if (pTemp->IsAlive())
-                pTemp->CastSpell(nullptr, SPELL_FEL_CRYSTAL_VISUAL, TRIGGERED_NONE);
-    }
+    return new npc_kalecgosAI(pCreature);
 }
 
-void instance_magisters_terrace::Load(const char* chrIn)
+bool ProcessEventId_event_go_scrying_orb(uint32 /*uiEventId*/, Object* pSource, Object* /*pTarget*/, bool bIsStart)
 {
-    if (!chrIn)
+    if (bIsStart && pSource->GetTypeId() == TYPEID_PLAYER)
     {
-        OUT_LOAD_INST_DATA_FAIL;
-        return;
+        if (instance_magisters_terrace* pInstance = (instance_magisters_terrace*)((Player*)pSource)->GetInstanceData())
+        {
+            // Check if the Dragon is already spawned and don't allow it to spawn it multiple times
+            if (pInstance->GetSingleCreatureFromStorage(NPC_KALECGOS_DRAGON, true))
+                return true;
+        }
     }
-
-    OUT_LOAD_INST_DATA(chrIn);
-
-    std::istringstream loadStream(chrIn);
-    loadStream >> m_auiEncounter[0] >> m_auiEncounter[1] >> m_auiEncounter[2] >> m_auiEncounter[3];
-
-    for (uint32& i : m_auiEncounter)
-    {
-        if (i == IN_PROGRESS)
-            i = NOT_STARTED;
-    }
-
-    OUT_LOAD_INST_DATA_COMPLETE;
+    return false;
 }
 
-uint32 instance_magisters_terrace::GetData(uint32 uiType) const
-{
-    if (uiType < MAX_ENCOUNTER)
-        return m_auiEncounter[uiType];
-
-    return 0;
-}
-
-void AddSC_instance_magisters_terrace()
+void AddSC_magisters_terrace()
 {
     Script* pNewScript = new Script;
-    pNewScript->Name = "instance_magisters_terrace";
-    pNewScript->GetInstanceData = &GetNewInstanceScript<instance_magisters_terrace>;
+    pNewScript->Name = "npc_kalecgos";
+    pNewScript->GetAI = &GetAI_npc_kalecgos;
+    pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
+    pNewScript->Name = "event_go_scrying_orb";
+    pNewScript->pProcessEventId = &ProcessEventId_event_go_scrying_orb;
     pNewScript->RegisterSelf();
 }

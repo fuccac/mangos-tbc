@@ -22,7 +22,7 @@
 #include "GMTickets/GMTicketMgr.h"
 #include "Globals/ObjectMgr.h"
 #include "Entities/ObjectGuid.h"
-#include "Util/ProgressBar.h"
+#include "ProgressBar.h"
 #include "Policies/Singleton.h"
 #include "Entities/Player.h"
 #include "Chat/Chat.h"
@@ -30,7 +30,6 @@
 #include "Tools/Language.h"
 #include "World/World.h"
 
-#include <memory>
 #include <regex>
 
 template <typename T>
@@ -331,16 +330,15 @@ void GMTicketMgr::LoadGMTickets()
     RemoveAll();
 
     // Try to get highest ticket id to start counting from
-    std::unique_ptr<QueryResult> max(CharacterDatabase.Query("SELECT MAX(id) FROM gm_tickets"));
-    if (max)
+    if (QueryResult* max = CharacterDatabase.Query("SELECT MAX(id) FROM gm_tickets"))
         m_lastTicketId = max->Fetch()->GetUInt32();
 
     // Load open tickets into memory
-    std::unique_ptr<QueryResult> result(CharacterDatabase.Query(
+    QueryResult* result = CharacterDatabase.Query(
         "SELECT "
         "id, category, state, status, level, author_guid, author_name, locale, mapid, x, y, z, o, text, created, updated, seen, answered, closed, assignee_guid, assignee_name, conclusion, notes"
         " FROM gm_tickets WHERE state = 0"
-    ));
+    );
 
     if (!result)
     {
@@ -362,6 +360,8 @@ void GMTicketMgr::LoadGMTickets()
         GMTicket* ticket = new GMTicket(fields);
         Add(ticket, true);
     } while (result->NextRow());
+
+    delete result;
 
     m_list.sort(GMTicket::Compare);
 

@@ -27,6 +27,7 @@ struct ArcaneConcentration : public AuraScript
         {
             if (IsChanneledSpell(spell->m_spellInfo))
                 return false; // these never proc
+            bool registered = false;
             if (SpellEntry const* spellInfo = spell->GetTriggeredByAuraSpellInfo())
             {
                 if (IsChanneledSpell(spellInfo))
@@ -37,6 +38,7 @@ struct ArcaneConcentration : public AuraScript
                             return false;
 
                         channeledSpell->RegisterAuraProc(aura);
+                        registered = true;
                     }
                 }
             }
@@ -46,22 +48,7 @@ struct ArcaneConcentration : public AuraScript
     }
 };
 
-// 42208 - Blizzard
-struct Blizzard : public SpellScript
-{
-    void OnCast(Spell* spell) const override
-    {
-        if (spell->GetCaster()->HasOverrideScript(836)) // Improved Blizzard (Rank 1)
-            spell->AddPrecastSpell(12484);
-        if (spell->GetCaster()->HasOverrideScript(988)) // Improved Blizzard (Rank 2)
-            spell->AddPrecastSpell(12485);
-        if (spell->GetCaster()->HasOverrideScript(989)) // Improved Blizzard (Rank 3)
-            spell->AddPrecastSpell(12486);
-    }
-};
-
 void LoadMageScripts()
 {
-    RegisterSpellScript<ArcaneConcentration>("spell_arcane_concentration");
-    RegisterSpellScript<Blizzard>("spell_blizzard");
+    RegisterAuraScript<ArcaneConcentration>("spell_arcane_concentration");
 }

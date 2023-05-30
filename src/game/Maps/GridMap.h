@@ -37,11 +37,6 @@ class Group;
 class BattleGround;
 class Map;
 
-namespace VMAP
-{
-    class IVMapManager;
-};
-
 class GridMap
 {
     private:
@@ -116,7 +111,7 @@ class GridMap
         inline float getHeight(float x, float y) const { return (this->*m_gridGetHeight)(x, y); }
         float getLiquidLevel(float x, float y) const;
         uint8 getTerrainType(float x, float y) const;
-        GridMapLiquidStatus getLiquidStatus(float x, float y, float z, uint8 ReqLiquidType, GridMapLiquidData* data = nullptr, float collisionHeight = 2.03128f);
+        GridMapLiquidStatus getLiquidStatus(float x, float y, float z, uint8 ReqLiquidType, GridMapLiquidData* data = nullptr);
 };
 
 template<typename Countable>
@@ -152,9 +147,9 @@ class TerrainInfo : public Referencable<std::atomic_long>
         float GetWaterOrGroundLevel(float x, float y, float z, float& groundZ, bool swim = false, float minWaterDeep = DEFAULT_COLLISION_HEIGHT) const;
         bool IsInWater(float x, float y, float z, GridMapLiquidData* data = nullptr) const;
         bool IsSwimmable(float x, float y, float z, float radius = 1.5f, GridMapLiquidData* data = nullptr) const;
-        bool IsUnderWater(float x, float y, float z, float* waterZ = nullptr) const;
+        bool IsUnderWater(float x, float y, float z) const;
 
-        GridMapLiquidStatus getLiquidStatus(float x, float y, float z, uint8 ReqLiquidType, GridMapLiquidData* data = nullptr, float collisionHeight = 2.03128f) const;
+        GridMapLiquidStatus getLiquidStatus(float x, float y, float z, uint8 ReqLiquidType, GridMapLiquidData* data = nullptr) const;
 
         uint16 GetAreaFlag(float x, float y, float z, bool* isOutdoors = nullptr) const;
         uint8 GetTerrainType(float x, float y) const;
@@ -164,7 +159,6 @@ class TerrainInfo : public Referencable<std::atomic_long>
         void GetZoneAndAreaId(uint32& zoneid, uint32& areaid, float x, float y, float z) const;
 
         bool GetAreaInfo(float x, float y, float z, uint32& flags, int32& adtId, int32& rootId, int32& groupId) const;
-        AreaNameInfo GetAreaName(float x, float y, float z, uint32 langIndex) const;
         bool IsOutdoors(float x, float y, float z) const;
 
 
@@ -173,8 +167,6 @@ class TerrainInfo : public Referencable<std::atomic_long>
         // to destroy them dynamically, especially on highly populated servers
         // THIS METHOD IS NOT THREAD-SAFE!!!! AND IT SHOULDN'T BE THREAD-SAFE!!!!
         void CleanUpGrids(const uint32 diff);
-
-        bool CanCheckLiquidLevel(float x, float y) const;
 
     protected:
         friend class Map;
@@ -196,13 +188,10 @@ class TerrainInfo : public Referencable<std::atomic_long>
         const uint32 m_mapId;
 
         GridMap* m_GridMaps[MAX_NUMBER_OF_GRIDS][MAX_NUMBER_OF_GRIDS];
-        bool m_GridMapsLoadAttempted[MAX_NUMBER_OF_GRIDS][MAX_NUMBER_OF_GRIDS];
         int16 m_GridRef[MAX_NUMBER_OF_GRIDS][MAX_NUMBER_OF_GRIDS];
 
         // global garbage collection timer
         ShortIntervalTimer i_timer;
-
-        VMAP::IVMapManager* m_vmgr;
 
         typedef std::mutex LOCK_TYPE;
         typedef std::lock_guard<LOCK_TYPE> LOCK_GUARD;

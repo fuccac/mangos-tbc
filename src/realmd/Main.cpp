@@ -30,14 +30,11 @@
 #include "SystemConfig.h"
 #include "revision.h"
 #include "revision_sql.h"
-#include "Util/Util.h"
+#include "Util.h"
 #include "Network/Listener.hpp"
 
 #include <openssl/opensslv.h>
 #include <openssl/crypto.h>
-#if defined(OPENSSL_VERSION_MAJOR) && (OPENSSL_VERSION_MAJOR >= 3)
-#include <openssl/provider.h>
-#endif
 
 #include <boost/program_options.hpp>
 #include <boost/version.hpp>
@@ -48,7 +45,7 @@
 #include <thread>
 
 #ifdef _WIN32
-#include "Platform/ServiceWin32.h"
+#include "ServiceWin32.h"
 char serviceName[] = "realmd";
 char serviceLongName[] = "MaNGOS realmd service";
 char serviceDescription[] = "Massive Network Game Object Server";
@@ -60,7 +57,7 @@ char serviceDescription[] = "Massive Network Game Object Server";
  */
 int m_ServiceStatus = -1;
 #else
-#include "Platform/PosixDaemon.h"
+#include "PosixDaemon.h"
 #endif
 
 bool StartDB();
@@ -173,23 +170,12 @@ int main(int argc, char* argv[])
         Log::WaitBeforeContinueIfNeed();
     }
 
-    DETAIL_LOG("%s (Library: %s)", OPENSSL_VERSION_TEXT, OpenSSL_version(OPENSSL_VERSION));
-#if defined(OPENSSL_VERSION_MAJOR) && (OPENSSL_VERSION_MAJOR >= 3)
-    // Load OpenSSL 3.0+ providers
-    OSSL_PROVIDER* openssl_legacy = OSSL_PROVIDER_load(nullptr, "legacy");
-    if (!openssl_legacy)
+    DETAIL_LOG("%s (Library: %s)", OPENSSL_VERSION_TEXT, SSLeay_version(SSLEAY_VERSION));
+    if (SSLeay() < 0x009080bfL)
     {
-        sLog.outError("OpenSSL3: Failed to load Legacy provider");
-        return 1;
+        DETAIL_LOG("WARNING: Outdated version of OpenSSL lib. Logins to server may not work!");
+        DETAIL_LOG("WARNING: Minimal required version [OpenSSL 0.9.8k]");
     }
-    OSSL_PROVIDER* openssl_default = OSSL_PROVIDER_load(nullptr, "default");
-    if (!openssl_default)
-    {
-        sLog.outError("OpenSSL3: Failed to load Default provider");
-        OSSL_PROVIDER_unload(openssl_legacy);
-        return 1;
-    }
-#endif
 
     sLog.outString();
     sLog.outString("<Ctrl-C> to stop.");

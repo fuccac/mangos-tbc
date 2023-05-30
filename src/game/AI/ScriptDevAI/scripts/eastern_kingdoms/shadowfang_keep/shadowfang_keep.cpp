@@ -57,7 +57,7 @@ enum
     GOSSIP_ITEM_DOOR        = -3033000
 };
 
-struct npc_shadowfang_prisonerAI : public npc_escortAI
+struct npc_shadowfang_prisonerAI : public npc_escortAI, public TimerManager
 {
     npc_shadowfang_prisonerAI(Creature* creature) : npc_escortAI(creature)
     {
@@ -65,6 +65,7 @@ struct npc_shadowfang_prisonerAI : public npc_escortAI
         m_npcEntry = creature->GetEntry();
         m_speechStep = 1;
         AddCustomAction(1, true, [&]() { HandleSpeech(); });
+        Reset();
     }
 
     ScriptedInstance* m_instance;
@@ -153,6 +154,14 @@ struct npc_shadowfang_prisonerAI : public npc_escortAI
             default:
                 break;
         }
+    }
+
+    void Reset() override {}
+
+    void UpdateAI(const uint32 diff) override
+    {
+        UpdateTimers(diff);
+        npc_escortAI::UpdateAI(diff);
     }
 };
 
@@ -384,9 +393,9 @@ enum ArugalActions
     ARUGAL_ACTIONS_MAX,
 };
 
-struct boss_arugalAI : public CombatAI
+struct boss_arugalAI : public RangedCombatAI
 {
-    boss_arugalAI(Creature* creature) : CombatAI(creature, ARUGAL_ACTIONS_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
+    boss_arugalAI(Creature* creature) : RangedCombatAI(creature, ARUGAL_ACTIONS_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
     {
         AddCombatAction(ARUGAL_TELEPORT, 22000, 26000);
         AddCombatAction(ARUGAL_CURSE, 20000, 30000);
@@ -602,7 +611,7 @@ struct npc_deathstalker_vincentAI : public ScriptedAI
 
     void UpdateAI(const uint32 diff) override
     {
-        if (m_creature->IsInCombat() && m_creature->GetFaction() == FACTION_FRIENDLY)
+        if (m_creature->IsInCombat() && m_creature->getFaction() == FACTION_FRIENDLY)
             EnterEvadeMode();
 
         ScriptedAI::UpdateAI(diff);
@@ -659,5 +668,5 @@ void AddSC_shadowfang_keep()
     newScript->GetAI = &GetNewAIInstance<npc_deathstalker_vincentAI>;
     newScript->RegisterSelf();
 
-    RegisterSpellScript<ForsakenSkill>("spell_forsaken_skill");
+    RegisterAuraScript<ForsakenSkill>("spell_forsaken_skill");
 }

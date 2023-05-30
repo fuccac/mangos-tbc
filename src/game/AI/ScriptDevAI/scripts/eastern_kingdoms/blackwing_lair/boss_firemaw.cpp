@@ -109,11 +109,15 @@ struct boss_firemawAI : public CombatAI
         }
     }
 };
+UnitAI* GetAI_boss_firemaw(Creature* creature)
+{
+    return new boss_firemawAI(creature);
+}
 
 void AddSC_boss_firemaw()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_firemaw";
-    pNewScript->GetAI = &GetNewAIInstance<boss_firemawAI>;
+    pNewScript->GetAI = &GetAI_boss_firemaw;
     pNewScript->RegisterSelf();
 }

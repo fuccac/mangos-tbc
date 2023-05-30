@@ -110,10 +110,15 @@ struct boss_ebonrocAI : public CombatAI
     }
 };
 
+UnitAI* GetAI_boss_ebonroc(Creature* creature)
+{
+    return new boss_ebonrocAI(creature);
+}
+
 void AddSC_boss_ebonroc()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_ebonroc";
-    pNewScript->GetAI = &GetNewAIInstance<boss_ebonrocAI>;
+    pNewScript->GetAI = &GetAI_boss_ebonroc;
     pNewScript->RegisterSelf();
 }

@@ -54,8 +54,7 @@ class Camera
         void ReceivePacket(WorldPacket const& data) const;
 
         // updates visibility of worldobjects around viewpoint for camera's owner
-        void UpdateVisibilityForOwner() { UpdateVisibilityForOwner(false); }
-        void UpdateVisibilityForOwner(bool addToWorld);
+        void UpdateVisibilityForOwner();
 
     private:
         // called when viewpoint changes visibility state

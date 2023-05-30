@@ -20,7 +20,7 @@
 #include "Server/Opcodes.h"
 #include "Log.h"
 #include "Entities/Player.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Server/WorldSession.h"
 
 void WorldSession::HandleLearnTalentOpcode(WorldPacket& recv_data)

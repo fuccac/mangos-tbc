@@ -136,12 +136,11 @@ struct boss_silithidRoyaltyAI : public CombatAI
 
     void DoDummyConsume()
     {
-        m_creature->SetNoLoot(true);
         DoScriptText(EMOTE_CONSUMED, m_creature);
         m_creature->SetStandState(UNIT_STAND_STATE_DEAD);
         DoSpecialAbility();
         m_creature->CastSpell(nullptr, SPELL_BLOODY_DEATH, TRIGGERED_OLD_TRIGGERED);
-        m_creature->ForcedDespawn(3000);    // Despawn as we are "consumed"
+        m_creature->ForcedDespawn(3000);    // Despawn as we are "consumed", also prevent looting
     }
 
     void DoSpecialAbility()
@@ -366,7 +365,7 @@ struct boss_yaujAI : public boss_silithidRoyaltyAI
             }
             case YAUJ_DISPEL:
             {
-                CreatureList targets = DoFindFriendlyEligibleDispel(50.0f);
+                CreatureList targets = DoFindFriendlyCC(50.0f);
                 if (Creature* target = targets.empty() ? nullptr : *(targets.begin()))
                     if (DoCastSpellIfCan(target, SPELL_DISPEL) == CAST_OK)
                         ResetCombatAction(action, urand(10000, 15000));

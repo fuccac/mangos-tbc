@@ -23,7 +23,7 @@
 #include "PetAI.h"
 #include "AI/EventAI/CreatureEventAI.h"
 #include "Entities/ObjectGuid.h"
-#include "Util/Timer.h"
+#include "Timer.h"
 
 class Creature;
 class Spell;
@@ -40,10 +40,6 @@ class GuardianAI : public CreatureEventAI
         virtual void EnterEvadeMode() override;
         virtual void UpdateAI(const uint32 diff) override;
         virtual void CombatStop() override;
-
-        void JustDied(Unit* killer) override;
-
-        void OnUnsummon() override;
     protected:
         std::string GetAIName() override { return "GuardianAI"; }
 };

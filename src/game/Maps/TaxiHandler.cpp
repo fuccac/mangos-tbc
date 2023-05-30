@@ -18,7 +18,7 @@
 
 #include "Common.h"
 #include "Database/DatabaseEnv.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
 #include "Log.h"
@@ -183,12 +183,9 @@ void WorldSession::HandleMoveSplineDoneOpcode(WorldPacket& recv_data)
     DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_SPLINE_DONE");
 
     MovementInfo movementInfo;                              // used only for proper packet read
-    uint32 movementCounter;                                 // spline counter
 
     recv_data >> movementInfo;
-    recv_data >> movementCounter;
-
-    // TODO: Add checking for correct point end for correct spline
+    recv_data >> Unused<uint32>();                          // unk
 }
 
 void WorldSession::HandleActivateTaxiOpcode(WorldPacket& recv_data)

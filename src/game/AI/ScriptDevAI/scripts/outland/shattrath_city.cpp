@@ -32,7 +32,6 @@ EndContentData */
 #include "AI/ScriptDevAI/base/escort_ai.h"
 #include "World/WorldState.h"
 #include "AI/ScriptDevAI/base/TimerAI.h"
-#include "Spells/Scripts/SpellScript.h"
 
 enum
 {
@@ -348,7 +347,7 @@ enum
     QUEST_CITY_LIGHT        = 10211
 };
 
-struct npc_khadgars_servantAI : public npc_escortAI
+struct npc_khadgars_servantAI : public npc_escortAI, public TimerManager
 {
     npc_khadgars_servantAI(Creature* creature) : npc_escortAI(creature), m_startPhase(0)
     {
@@ -452,7 +451,7 @@ struct npc_khadgars_servantAI : public npc_escortAI
 
     void UpdateEscortAI(const uint32 diff) override
     {
-        UpdateTimers(diff, m_creature->IsInCombat());
+        UpdateTimers(diff);
 
         if (m_uiRandomTalkCooldown)
         {
@@ -692,40 +691,12 @@ bool QuestRewarded_npc_adal(Player* player, Creature* creature, Quest const* que
             break;
         case QUEST_KAELTHAS_AND_THE_VERDANT_SPHERE:
             sWorldState.HandleExternalEvent(CUSTOM_EVENT_ADALS_SONG_OF_BATTLE, 0);
-            player->GetMap()->ScriptsStart(SCRIPT_TYPE_RELAY, SCRIPT_RELAY_ID, creature, player, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE); // only once active per adal
+            player->GetMap()->ScriptsStart(sRelayScripts, SCRIPT_RELAY_ID, creature, player, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE); // only once active per adal
             return true; // handled
     }
 
     return false; // unhandled
 }
-
-enum
-{
-    SPELL_DEMON_BROILED_SURPRISE    = 43753,
-};
-
-struct DemonBroiledSurprise : public SpellScript
-{
-    SpellCastResult OnCheckCast(Spell* spell, bool strict) const
-    {
-        if (strict)
-        {
-            float radius = GetSpellMaxRange(sSpellRangeStore.LookupEntry(spell->m_spellInfo->rangeIndex));
-            UnitList tempUnitList;
-            GameObjectList tempGOList;
-            return spell->CheckScriptTargeting(EFFECT_INDEX_1, 1, radius, TARGET_ENUM_UNITS_SCRIPT_AOE_AT_SRC_LOC, tempUnitList, tempGOList);
-        }
-        return SPELL_CAST_OK;
-    }
-
-    void OnEffectExecute(Spell* spell, SpellEffectIndex effIdx) const override
-    {
-        if (effIdx != EFFECT_INDEX_0)
-            return;
-
-        spell->GetCaster()->CastSpell(nullptr, SPELL_DEMON_BROILED_SURPRISE, TRIGGERED_NONE);
-    }
-};
 
 void AddSC_shattrath_city()
 {
@@ -751,6 +722,4 @@ void AddSC_shattrath_city()
     pNewScript->Name = "npc_adal";
     pNewScript->pQuestRewardedNPC = &QuestRewarded_npc_adal;
     pNewScript->RegisterSelf();
-
-    RegisterSpellScript<DemonBroiledSurprise>("spell_demon_broiled_surprise");
 }

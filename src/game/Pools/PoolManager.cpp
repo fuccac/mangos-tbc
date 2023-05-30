@@ -19,7 +19,7 @@
 #include "Pools/PoolManager.h"
 #include "Globals/ObjectMgr.h"
 #include "Entities/ObjectGuid.h"
-#include "Util/ProgressBar.h"
+#include "ProgressBar.h"
 #include "Log.h"
 #include "Maps/MapPersistentStateMgr.h"
 #include "World/World.h"
@@ -312,7 +312,7 @@ void PoolGroup<Creature>::Despawn1Object(MapPersistentState& mapState, uint32 gu
             dataMapState->RemoveCreatureFromGrid(guid, data);
 
             if (Map* dataMap = dataMapState->GetMap())
-                if (Creature* pCreature = dataMap->GetCreature(guid))
+                if (Creature* pCreature = dataMap->GetCreature(data->GetObjectGuid(guid)))
                     pCreature->AddObjectToRemoveList();
         }
     }
@@ -330,7 +330,7 @@ void PoolGroup<GameObject>::Despawn1Object(MapPersistentState& mapState, uint32 
             dataMapState->RemoveGameobjectFromGrid(guid, data);
 
             if (Map* dataMap = dataMapState->GetMap())
-                if (GameObject* pGameobject = dataMap->GetGameObject(guid))
+                if (GameObject* pGameobject = dataMap->GetGameObject(ObjectGuid(HIGHGUID_GAMEOBJECT, data->id, guid)))
                     pGameobject->AddObjectToRemoveList();
         }
     }
@@ -450,7 +450,7 @@ void PoolGroup<Creature>::Spawn1Object(MapPersistentState& mapState, PoolObject*
         if (dataMap && dataMap->IsLoaded(data->posX, data->posY))
         {
             Creature* pCreature = new Creature;
-            if (!pCreature->LoadFromDB(obj->guid, dataMap, obj->guid, 0))
+            if (!pCreature->LoadFromDB(obj->guid, dataMap, obj->guid))
                 delete pCreature;
             else
             {
@@ -486,7 +486,7 @@ void PoolGroup<GameObject>::Spawn1Object(MapPersistentState& mapState, PoolObjec
             GameObjectData const* data = sObjectMgr.GetGOData(obj->guid);
             MANGOS_ASSERT(data);
             GameObject* pGameobject = GameObject::CreateGameObject(data->id);
-            if (!pGameobject->LoadFromDB(obj->guid, dataMap, obj->guid, 0))
+            if (!pGameobject->LoadFromDB(obj->guid, dataMap, obj->guid))
                 delete pGameobject;
             else
             {
@@ -497,24 +497,14 @@ void PoolGroup<GameObject>::Spawn1Object(MapPersistentState& mapState, PoolObjec
                     if (sWorld.getConfig(CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATELY))
                         pGameobject->SaveRespawnTime();
                 }
+                dataMap->Add(pGameobject);
             }
         }
         // for not loaded grid just update respawn time (avoid work for instances until implemented support)
         else if (!instantly)
-        {
             // for spawned by default object only
             if (data->spawntimesecsmin >= 0)
-            {
-                uint32 respawnTime = data->GetRandomRespawnTime();
-                mapState.SaveGORespawnTime(obj->guid, time(nullptr) + respawnTime);
-                if (dataMap)
-                {
-                    GameObjectInfo const* goinfo = ObjectMgr::GetGameObjectInfo(data->id);
-                    if (!goinfo || goinfo->ExtraFlags & GAMEOBJECT_EXTRA_FLAG_DYNGUID)
-                        dataMap->GetSpawnManager().RespawnGameObject(obj->guid, respawnTime);
-                }
-            }
-        }
+                mapState.SaveGORespawnTime(obj->guid, time(nullptr) + data->GetRandomRespawnTime());
     }
 }
 
@@ -534,7 +524,7 @@ void PoolGroup<Creature>::ReSpawn1Object(MapPersistentState& mapState, PoolObjec
         // for non-instanceable maps pool spawn can be at different map from provided mapState
         if (MapPersistentState* dataMapState = mapState.GetMapId() == data->mapid ? &mapState : sMapPersistentStateMgr.GetPersistentState(data->mapid, 0))
             if (Map* dataMap = dataMapState->GetMap())
-                if (Creature* pCreature = dataMap->GetCreature(obj->guid))
+                if (Creature* pCreature = dataMap->GetCreature(data->GetObjectGuid(obj->guid)))
                     pCreature->GetMap()->Add(pCreature);
     }
 }
@@ -548,7 +538,7 @@ void PoolGroup<GameObject>::ReSpawn1Object(MapPersistentState& mapState, PoolObj
         // for non-instanceable maps pool spawn can be at different map from provided mapState
         if (MapPersistentState* dataMapState = mapState.GetMapId() == data->mapid ? &mapState : sMapPersistentStateMgr.GetPersistentState(data->mapid, 0))
             if (Map* dataMap = dataMapState->GetMap())
-                if (GameObject* pGameobject = dataMap->GetGameObject(obj->guid))
+                if (GameObject* pGameobject = dataMap->GetGameObject(ObjectGuid(HIGHGUID_GAMEOBJECT, data->id, obj->guid)))
                     pGameobject->GetMap()->Add(pGameobject);
     }
 }
@@ -1035,19 +1025,14 @@ void PoolManager::LoadFromDB()
     // check chances integrity
     for (uint16 pool_entry = 0; pool_entry < mPoolTemplate.size(); ++pool_entry)
     {
-        auto& poolTemplate = mPoolTemplate[pool_entry];
-        if (poolTemplate.AutoSpawn)
+        if (mPoolTemplate[pool_entry].AutoSpawn)
         {
             if (!CheckPool(pool_entry))
             {
                 sLog.outErrorDb("Pool Id (%u) has all creatures or gameobjects with explicit chance sum <>100 and no equal chance defined. The pool system cannot pick one to spawn.", pool_entry);
-                poolTemplate.AutoSpawn = false;
+                mPoolTemplate[pool_entry].AutoSpawn = false;
             }
         }
-        if (poolTemplate.mapEntry != nullptr || poolTemplate.MaxLimit > 0 || poolTemplate.description != "")
-            if (pool_entry <= max_pool_id)
-                if (mPoolGameobjectGroups[pool_entry].isEmpty() && mPoolCreatureGroups[pool_entry].isEmpty() && mPoolPoolGroups[pool_entry].isEmpty())
-                    sLog.outErrorDb("Pool Template Id (%u) is empty.", pool_entry);
     }
 
     sLog.outString();

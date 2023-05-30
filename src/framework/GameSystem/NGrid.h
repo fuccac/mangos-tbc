@@ -24,7 +24,7 @@
 
 #include "GameSystem/Grid.h"
 #include "GameSystem/GridReference.h"
-#include "Util/Timer.h"
+#include "Timer.h"
 
 #include <cassert>
 

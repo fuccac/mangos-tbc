@@ -126,11 +126,12 @@ add_library(${LIBRARY_NAME} STATIC
   ${LIBRARY_SRCS}
 )
 target_link_libraries(${LIBRARY_NAME}
-  PRIVATE zlib
+  PRIVATE ${ZLIB_LIBRARIES}
 )
 
 target_include_directories(${LIBRARY_NAME}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  PRIVATE ${ZLIB_INCLUDE_DIRS}
 )
 
 if(MSVC)

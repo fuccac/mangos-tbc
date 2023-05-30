@@ -20,7 +20,7 @@
 #define MANGOS_OBJECT_GUID_H
 
 #include "Common.h"
-#include "Util/ByteBuffer.h"
+#include "ByteBuffer.h"
 #include <atomic>
 
 enum TypeID

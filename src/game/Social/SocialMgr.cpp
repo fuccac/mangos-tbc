@@ -20,11 +20,11 @@
 #include "Policies/Singleton.h"
 #include "Database/DatabaseEnv.h"
 #include "Server/Opcodes.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Entities/Player.h"
 #include "Globals/ObjectMgr.h"
 #include "World/World.h"
-#include "Util/Util.h"
+#include "Util.h"
 
 INSTANTIATE_SINGLETON_1(SocialMgr);
 
@@ -205,7 +205,7 @@ void SocialMgr::GetFriendInfo(Player* player, uint32 friend_lowguid, FriendInfo&
         if (pFriend->isDND())
             friendInfo.Status = FRIEND_STATUS_DND;
         friendInfo.Area = pFriend->GetZoneId();
-        friendInfo.Level = pFriend->GetLevel();
+        friendInfo.Level = pFriend->getLevel();
         friendInfo.Class = pFriend->getClass();
     }
     else

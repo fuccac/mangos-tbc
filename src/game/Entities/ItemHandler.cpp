@@ -17,7 +17,7 @@
  */
 
 #include "Common.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
 #include "Log.h"
@@ -719,8 +719,7 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid) const
     }
 
     // Stop the npc if moving
-    if (uint32 pauseTimer = pCreature->GetInteractionPauseTimer())
-        pCreature->GetMotionMaster()->PauseWaypoints(pauseTimer);
+    pCreature->GetMotionMaster()->PauseWaypoints();
 
     VendorItemData const* vItems = pCreature->GetVendorItems();
     VendorItemData const* tItems = pCreature->GetVendorTemplateItems();
@@ -785,9 +784,6 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid) const
                 data << uint32(pProto->MaxDurability);
                 data << uint32(pProto->BuyCount);
                 data << uint32(crItem->ExtendedCost);
-
-                if (count >= MAX_VENDOR_ITEMS)
-                    break;
             }
         }
     }

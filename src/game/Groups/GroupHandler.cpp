@@ -20,15 +20,14 @@
 #include "Database/DatabaseEnv.h"
 #include "Server/Opcodes.h"
 #include "Log.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "World/World.h"
 #include "Globals/ObjectMgr.h"
 #include "Entities/Player.h"
 #include "Groups/Group.h"
 #include "Social/SocialMgr.h"
-#include "Util/Util.h"
-#include "Anticheat/Anticheat.hpp"
+#include "Util.h"
 
 /* differeces from off:
     -you can uninvite yourself - is is useful
@@ -95,14 +94,8 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recv_data)
         return;
     }
 
-    if (GetAnticheat()->IsSilenced())
-    {
-        SendPartyResult(PARTY_OP_INVITE, membername, ERR_PARTY_RESULT_OK);
-        return;
-    }
-
     Group* initiatorGroup = initiator->GetGroup();
-    if (initiatorGroup && initiatorGroup->IsBattleGroup())
+    if (initiatorGroup && initiatorGroup->isBattleGroup())
         initiatorGroup = initiator->GetOriginalGroup();
     if (!initiatorGroup)
         initiatorGroup = initiator->GetGroupInvite();
@@ -115,7 +108,7 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recv_data)
     }
 
     Group* recipientGroup = recipient->GetGroup();
-    if (recipientGroup && recipientGroup->IsBattleGroup())
+    if (recipientGroup && recipientGroup->isBattleGroup())
         recipientGroup = recipient->GetOriginalGroup();
 
     // player already in another group
@@ -169,9 +162,6 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recv_data)
             return;
         }
     }
-
-    // Record targets for uniqueness when spamming
-    GetAnticheat()->PartyInvite(recipient->GetObjectGuid());
 
     // ok, we do it
     WorldPacket data(SMSG_GROUP_INVITE, 10);                // guess size
@@ -672,7 +662,7 @@ void WorldSession::BuildPartyMemberStatsChangedPacket(Player* player, WorldPacke
         data << uint16(player->GetMaxPower(powerType));
 
     if (mask & GROUP_UPDATE_FLAG_LEVEL)
-        data << uint16(player->GetLevel());
+        data << uint16(player->getLevel());
 
     if (mask & GROUP_UPDATE_FLAG_ZONE)
         data << uint16(player->GetZoneId());
@@ -809,7 +799,7 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPacket& recv_data)
     data << uint8(powerType);                               // GROUP_UPDATE_FLAG_POWER_TYPE
     data << uint16(player->GetPower(powerType));            // GROUP_UPDATE_FLAG_CUR_POWER
     data << uint16(player->GetMaxPower(powerType));         // GROUP_UPDATE_FLAG_MAX_POWER
-    data << uint16(player->GetLevel());                     // GROUP_UPDATE_FLAG_LEVEL
+    data << uint16(player->getLevel());                     // GROUP_UPDATE_FLAG_LEVEL
 
     // verify player coordinates and zoneid to send to teammates
     uint16 iZoneId = 0;
@@ -922,7 +912,7 @@ void WorldSession::HandleGroupSwapSubGroupOpcode(WorldPacket& recv_data)
     Player* player = GetPlayer();
 
     Group* group = player->GetGroup();
-    if (!group || !group->IsRaidGroup())
+    if (!group || !group->isRaidGroup())
         return;
 
     ObjectGuid const& guid = player->GetObjectGuid();

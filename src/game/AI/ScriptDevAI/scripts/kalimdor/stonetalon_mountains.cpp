@@ -139,7 +139,7 @@ struct go_covertopsAI : public GameObjectAI
         m_returnTimer = 45 * IN_MILLISECONDS;
     }
 
-    void OnLootStateChange(Unit* /*user*/) override
+    void OnLootStateChange() override
     {
         if (m_go->GetLootState() == GO_JUST_DEACTIVATED)
         {

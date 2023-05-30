@@ -25,9 +25,9 @@
 
 #include "Common.h"
 #include "Auth/BigNumber.h"
-#include "Auth/CryptoHash.h"
-#include "Auth/SRP6.h"
-#include "Util/ByteBuffer.h"
+#include "Auth/Sha1.h"
+#include "SRP6/SRP6.h"
+#include "ByteBuffer.h"
 
 #include "Network/Socket.hpp"
 
@@ -44,13 +44,9 @@ class AuthSocket : public MaNGOS::Socket
 
         AuthSocket(boost::asio::io_service& service, std::function<void (Socket*)> closeHandler);
 
-        bool Open() override;
-
         void SendProof(Sha1Hash sha);
-        void LoadRealmlist(ByteBuffer& pkt, uint32 acctid, uint8 accountSecurityLevel = 0);
+        void LoadRealmlist(ByteBuffer& pkt, uint32 acctid);
         int32 generateToken(char const* b32key);
-
-        uint8 getEligibleRealmCount(uint8 accountSecurityLevel);
 
         bool VerifyVersion(uint8 const* a, int32 aLength, uint8 const* versionProof, bool isReconnect);
         bool _HandleLogonChallenge();
@@ -84,7 +80,6 @@ class AuthSocket : public MaNGOS::Socket
         std::string _safelogin;
         std::string _token;
         std::string m_os;
-        std::string m_platform;
         std::string m_locale;
         std::string _safelocale;
         uint16 _build;

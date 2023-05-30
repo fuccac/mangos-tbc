@@ -99,7 +99,6 @@ struct boss_mr_smiteAI : public ScriptedAI
 
         m_creature->SetSheath(SHEATH_STATE_UNARMED);
         m_creature->SetStandState(UNIT_STAND_STATE_KNEEL);
-        SetEquipmentSlots(false, 0, 0);
 
         m_uiEquipTimer = 3000;
         m_uiPhase = PHASE_EQUIP_PROCESS;
@@ -124,7 +123,7 @@ struct boss_mr_smiteAI : public ScriptedAI
 
         m_creature->GetMotionMaster()->Clear();
         m_creature->SetFacingToObject(pChest);
-        m_creature->GetMotionMaster()->MovePoint(0, fX, fY, fZ, FORCED_MOVEMENT_RUN);
+        m_creature->GetMotionMaster()->MovePoint(0, fX, fY, fZ);
     }
 
     void PhaseEquipProcess()

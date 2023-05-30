@@ -64,9 +64,9 @@ struct boss_emerald_dragonAI : public ScriptedAI
     {
         m_uiEventCounter = 1;
 
-        m_uiSeepingFogTimer = 30000;
-        m_uiNoxiousBreathTimer = urand(9000, 12000);
-        m_uiTailsweepTimer = urand(10000, 20000);
+        m_uiSeepingFogTimer = urand(15000, 20000);
+        m_uiNoxiousBreathTimer = 8000;
+        m_uiTailsweepTimer = 4000;
     }
 
     void EnterCombat(Unit* pEnemy) override
@@ -83,9 +83,10 @@ struct boss_emerald_dragonAI : public ScriptedAI
             pVictim->CastSpell(pVictim, SPELL_MARK_OF_NATURE_PLAYER, TRIGGERED_OLD_TRIGGERED, nullptr, nullptr, m_creature->GetObjectGuid());
     }
 
-    void JustSummoned(Creature* summoned) override
+    void JustSummoned(Creature* pSummoned) override
     {
-        summoned->AI()->AttackClosestEnemy();
+        if (Unit* pTarget = m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0))
+            pSummoned->AI()->AttackStart(pTarget);
     }
 
     void JustDied(Unit* /*killer*/) override
@@ -117,7 +118,7 @@ struct boss_emerald_dragonAI : public ScriptedAI
         {
             DoCastSpellIfCan(m_creature, SPELL_SEEPING_FOG_R, CAST_TRIGGERED);
             DoCastSpellIfCan(m_creature, SPELL_SEEPING_FOG_L, CAST_TRIGGERED);
-            m_uiSeepingFogTimer = 60000;
+            m_uiSeepingFogTimer = urand(120000, 150000);    // Rather Guesswork, but one Fog has 2min duration, hence a bit longer
         }
         else
             m_uiSeepingFogTimer -= uiDiff;
@@ -125,7 +126,7 @@ struct boss_emerald_dragonAI : public ScriptedAI
         if (m_uiNoxiousBreathTimer < uiDiff)
         {
             if (DoCastSpellIfCan(m_creature, SPELL_NOXIOUS_BREATH) == CAST_OK)
-                m_uiNoxiousBreathTimer = urand(9000, 12000);
+                m_uiNoxiousBreathTimer = urand(14000, 20000);
         }
         else
             m_uiNoxiousBreathTimer -= uiDiff;
@@ -133,7 +134,7 @@ struct boss_emerald_dragonAI : public ScriptedAI
         if (m_uiTailsweepTimer < uiDiff)
         {
             if (DoCastSpellIfCan(m_creature, SPELL_TAILSWEEP) == CAST_OK)
-                m_uiTailsweepTimer = urand(10000, 30000);
+                m_uiTailsweepTimer = urand(15000, 20000);
         }
         else
             m_uiTailsweepTimer -= uiDiff;
@@ -385,8 +386,8 @@ struct boss_taerarAI : public boss_emerald_dragonAI
         m_uiShadesDead = 0;
 
         // Remove Unselectable if needed
-        if (m_creature->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE))
-            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        if (m_creature->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE))
+            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
         // Despawn all remaining summoned NPCs in case of raid wipe
         DoCastSpellIfCan(m_creature, SPELL_DESPAWN_SHADES, CAST_TRIGGERED);
@@ -408,7 +409,7 @@ struct boss_taerarAI : public boss_emerald_dragonAI
             DoCastSpellIfCan(m_creature, SPELL_SUMMON_SHADE_3, CAST_TRIGGERED);
 
             // Make boss not selectable when banished
-            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
             DoScriptText(SAY_SUMMONSHADE, m_creature);
             m_uiShadesTimeoutTimer = 60000;
@@ -434,7 +435,7 @@ struct boss_taerarAI : public boss_emerald_dragonAI
     void DoUnbanishBoss()
     {
         m_creature->RemoveAurasDueToSpell(SPELL_SELF_STUN);
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
 
         m_uiShadesTimeoutTimer = 0;
         m_uiShadesDead = 0;

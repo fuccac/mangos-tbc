@@ -357,9 +357,7 @@ struct npc_squire_roweAI : public npc_escortAI, private DialogueHelper
                 {
                     windsor->Unmount();
                     windsor->SetFacingTo(1.5636f);
-                    Position pos;
-                    windsor->GetFirstCollisionPosition(pos, 2.f, windsor->GetOrientation() + M_PI_F / 2);
-                    windsor->SummonCreature(12581, pos.x, pos.y, pos.z, pos.o, TEMPSPAWN_TIMED_DESPAWN, 55000);
+                    windsor->CastSpell(windsor, SPELL_DISMISS_HORSE, TRIGGERED_NONE);
                 }
                 break;
             }
@@ -890,7 +888,7 @@ struct npc_reginald_windsorAI : public npc_escortAI, private DialogueHelper
                 m_creature->RemoveAllAurasOnDeath();
                 m_creature->ModifyAuraState(AURA_STATE_HEALTHLESS_20_PERCENT, false);
                 m_creature->ModifyAuraState(AURA_STATE_HEALTHLESS_35_PERCENT, false);
-                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
                 m_creature->ClearAllReactives();
                 m_creature->SetImmobilizedState(true, true);
                 m_creature->SetStandState(UNIT_STAND_STATE_DEAD);
@@ -1070,39 +1068,6 @@ bool GossipSelect_npc_reginald_windsor(Player* player, Creature* creature, uint3
     return true;
 }
 
-enum
-{
-    GO_HEAD_OF_NEFARIAN_SW = 179882,
-    GO_HEAD_OF_ONYXIA_SW = 179558,
-
-    GOSSIP_HEAD_MAT = 5754,
-    GOSSIP_HEAD_AFRA = 6027,
-};
-
-bool GossipHello_npc_major_mattingly(Player* player, Creature* creature)
-{
-    uint32 gossipId = creature->GetCreatureInfo()->GossipMenuId;
-    if (GameObject* go = GetClosestGameObjectWithEntry(creature, GO_HEAD_OF_ONYXIA_SW, 100.f))
-        if (go->IsSpawned())
-            gossipId = GOSSIP_HEAD_MAT;
-
-    player->PrepareGossipMenu(creature, gossipId);
-    player->SendPreparedGossip(creature);
-    return true;
-}
-
-bool GossipHello_npc_field_marshal_afrasiabi(Player* player, Creature* creature)
-{
-    uint32 gossipId = creature->GetCreatureInfo()->GossipMenuId;
-    if (GameObject* go = GetClosestGameObjectWithEntry(creature, GO_HEAD_OF_NEFARIAN_SW, 100.f))
-        if (go->IsSpawned())
-            gossipId = GOSSIP_HEAD_AFRA;
-
-    player->PrepareGossipMenu(creature, gossipId);
-    player->SendPreparedGossip(creature);
-    return true;
-}
-
 void AddSC_stormwind_city()
 {
     Script* pNewScript = new Script;
@@ -1136,15 +1101,5 @@ void AddSC_stormwind_city()
     pNewScript->pQuestAcceptNPC = &QuestAccept_npc_reginald_windsor;
     pNewScript->pGossipHello = &GossipHello_npc_reginald_windsor;
     pNewScript->pGossipSelect = &GossipSelect_npc_reginald_windsor;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
-    pNewScript->Name = "npc_major_mattingly";
-    pNewScript->pGossipHello = &GossipHello_npc_major_mattingly;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
-    pNewScript->Name = "npc_field_marshal_afrasiabi";
-    pNewScript->pGossipHello = &GossipHello_npc_field_marshal_afrasiabi;
     pNewScript->RegisterSelf();
 }

@@ -17,7 +17,7 @@
  */
 
 #include "Common.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Globals/ObjectMgr.h"
 #include "AI/ScriptDevAI/ScriptDevAIMgr.h"
@@ -25,7 +25,7 @@
 #include "Server/Opcodes.h"
 #include "Spells/Spell.h"
 #include "AI/BaseAI/CreatureAI.h"
-#include "Util/Util.h"
+#include "Util.h"
 #include "Entities/Pet.h"
 #include "MotionGenerators/PathFinder.h"
 
@@ -213,8 +213,6 @@ void WorldSession::HandlePetAction(WorldPacket& recv_data)
                         }
                         else
                         {
-                            charmInfo->SetPetLastAttackCommandTime(petUnit->GetMap()->GetCurrentMSTime());
-
                             // Send pet response regardless of command result as acknowledgement of command being processed
                             if (pet)
                             {
@@ -319,9 +317,7 @@ void WorldSession::HandlePetAction(WorldPacket& recv_data)
                     return;
             }
 
-            petUnit->clearUnitState(UNIT_STAT_MOVING);
-
-            uint32 flags = TRIGGERED_NORMAL_COMBAT_CAST;
+            uint32 flags = TRIGGERED_NONE;
             if (!petUnit->hasUnitState(UNIT_STAT_POSSESSED))
                 flags |= TRIGGERED_PET_CAST;
 
@@ -345,6 +341,8 @@ void WorldSession::HandlePetAction(WorldPacket& recv_data)
                         return;
                     }
 
+                    petUnit->GetMotionMaster()->Clear();
+
                     petUnit->AI()->AttackStart(unit_target);
                     // 10% chance to play special warlock pet attack talk, else growl
                     if (pet && pet->getPetType() == SUMMON_PET && pet != unit_target && roll_chance_i(10))
@@ -363,6 +361,23 @@ void WorldSession::HandlePetAction(WorldPacket& recv_data)
             targets.setUnitTarget(unit_target);
             SpellCastResult result = spell->SpellStart(&targets);
             charmInfo->SetSpellOpener();
+            // send update about target to owner unless possessed
+            if (!petUnit->hasUnitState(UNIT_STAT_POSSESSED))
+            {
+                if (unit_target)
+                {
+                    if (unit_target->GetTypeId() == TYPEID_PLAYER)
+                        petUnit->SendCreateUpdateToPlayer((Player*)unit_target);
+                }
+                else if (Unit* unit_target2 = spell->m_targets.getUnitTarget())
+                {
+                    if (unit_target2->GetTypeId() == TYPEID_PLAYER)
+                        petUnit->SendCreateUpdateToPlayer((Player*)unit_target2);
+                }
+                if (Unit* powner = petUnit->GetMaster())
+                    if (powner->GetTypeId() == TYPEID_PLAYER)
+                        petUnit->SendCreateUpdateToPlayer((Player*)powner);
+            }
             if (result == SPELL_CAST_OK)
             {
                 //10% chance to play special pet attack talk, else growl
@@ -591,7 +606,7 @@ void WorldSession::HandlePetRename(WorldPacket& recv_data)
     Pet* pet = _player->GetMap()->GetPet(petGuid);
     // check it!
     if (!pet || pet->getPetType() != HUNTER_PET ||
-            !pet->HasByteFlag(UNIT_FIELD_BYTES_2, UNIT_BYTES_2_OFFSET_PET_FLAGS, UNIT_CAN_BE_RENAMED) ||
+            !pet->HasByteFlag(UNIT_FIELD_BYTES_2, 2, UNIT_CAN_BE_RENAMED) ||
             pet->GetOwnerGuid() != _player->GetObjectGuid() || !pet->GetCharmInfo())
         return;
 
@@ -613,7 +628,7 @@ void WorldSession::HandlePetRename(WorldPacket& recv_data)
     if (_player->GetGroup())
         _player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_NAME);
 
-    pet->RemoveByteFlag(UNIT_FIELD_BYTES_2, UNIT_BYTES_2_OFFSET_PET_FLAGS, UNIT_CAN_BE_RENAMED);
+    pet->RemoveByteFlag(UNIT_FIELD_BYTES_2, 2, UNIT_CAN_BE_RENAMED);
 
     if (isdeclined)
     {
@@ -721,7 +736,7 @@ void WorldSession::HandlePetUnlearnOpcode(WorldPacket& recvPacket)
         pet->unlearnSpell(spell_id, false);
     }
 
-    pet->SetTP(pet->GetLevel() * (pet->GetLoyaltyLevel() - 1));
+    pet->SetTP(pet->getLevel() * (pet->GetLoyaltyLevel() - 1));
 
     for (int i = 0; i < MAX_UNIT_ACTION_BAR_INDEX; ++i)
         if (UnitActionBarEntry const* ab = charmInfo->GetActionBarEntry(i))

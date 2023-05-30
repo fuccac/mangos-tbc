@@ -24,13 +24,11 @@ EndScriptData */
 /* ContentData
 npc_00x09hl
 npc_rinji
-spell_gammerita_turtle_camera - s.11610
 EndContentData */
 
 #include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/escort_ai.h"
 #include "world_eastern_kingdoms.h"
-#include "Spells/Scripts/SpellScript.h"
 
 /*######
 ## npc_00x09hl
@@ -183,16 +181,21 @@ enum
     GO_RINJI_CAGE           = 142036
 };
 
-Position m_afAmbushSpawn[] =
+struct Location
 {
-    {191.29620f, -2839.329346f, 107.388f, 0.f},
-    {70.972466f, -2848.674805f, 109.459f, 0.f}
+    float m_fX, m_fY, m_fZ;
 };
 
-Position m_afAmbushMoveTo[] =
+Location m_afAmbushSpawn[] =
 {
-    {166.63038f, -2824.780273f, 108.153f, 0.f},
-    {70.886589f, -2874.335449f, 116.675f, 0.f}
+    {191.29620f, -2839.329346f, 107.388f},
+    {70.972466f, -2848.674805f, 109.459f}
+};
+
+Location m_afAmbushMoveTo[] =
+{
+    {166.63038f, -2824.780273f, 108.153f},
+    {70.886589f, -2874.335449f, 116.675f}
 };
 
 struct npc_rinjiAI : public npc_escortAI
@@ -247,13 +250,13 @@ struct npc_rinjiAI : public npc_escortAI
             m_iSpawnId = 1;
 
         m_creature->SummonCreature(NPC_RANGER,
-                                   m_afAmbushSpawn[m_iSpawnId].x, m_afAmbushSpawn[m_iSpawnId].y, m_afAmbushSpawn[m_iSpawnId].z, 0.0f,
+                                   m_afAmbushSpawn[m_iSpawnId].m_fX, m_afAmbushSpawn[m_iSpawnId].m_fY, m_afAmbushSpawn[m_iSpawnId].m_fZ, 0.0f,
                                    TEMPSPAWN_TIMED_OOC_OR_CORPSE_DESPAWN, 60000);
 
         for (int i = 0; i < 2; ++i)
         {
             m_creature->SummonCreature(NPC_OUTRUNNER,
-                                       m_afAmbushSpawn[m_iSpawnId].x, m_afAmbushSpawn[m_iSpawnId].y, m_afAmbushSpawn[m_iSpawnId].z, 0.0f,
+                                       m_afAmbushSpawn[m_iSpawnId].m_fX, m_afAmbushSpawn[m_iSpawnId].m_fY, m_afAmbushSpawn[m_iSpawnId].m_fZ, 0.0f,
                                        TEMPSPAWN_TIMED_OOC_OR_CORPSE_DESPAWN, 60000);
         }
     }
@@ -261,7 +264,7 @@ struct npc_rinjiAI : public npc_escortAI
     void JustSummoned(Creature* pSummoned) override
     {
         m_creature->SetWalk(false);
-        pSummoned->GetMotionMaster()->MovePoint(0, m_afAmbushMoveTo[m_iSpawnId].x, m_afAmbushMoveTo[m_iSpawnId].y, m_afAmbushMoveTo[m_iSpawnId].z);
+        pSummoned->GetMotionMaster()->MovePoint(0, m_afAmbushMoveTo[m_iSpawnId].m_fX, m_afAmbushMoveTo[m_iSpawnId].m_fY, m_afAmbushMoveTo[m_iSpawnId].m_fZ);
     }
 
     void WaypointReached(uint32 uiPointId) override
@@ -365,28 +368,11 @@ bool ProcessEventId_WildhammerMessage(uint32 /*eventId*/, Object* source, Object
 
     Player* player = static_cast<Player*>(source);
     player->UpdatePvP(true);
-    player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_PVP_ACTIVE_CANCELS);
+    player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ENTER_PVP_COMBAT);
     if (Creature* falstad = static_cast<ScriptedInstance*>(player->GetInstanceData())->GetSingleCreatureFromStorage(NPC_FALSTAD_WILDHAMMER))
         DoScriptText(YELL_FALSTAD_INVADERS, falstad, player);
     return true;
 }
-
-/*######
-## spell_gammerita_turtle_camera
-######*/
-
-struct GammeritaTurtleCamera : public SpellScript
-{
-    SpellCastResult OnCheckCast(Spell* spell, bool /*strict*/) const override
-    {
-        Unit* target = spell->m_targets.getUnitTarget();
-        // Gammerita Turtle Camera can be cast only on this target
-        if (!target || target->GetEntry() != 7977)
-            return SPELL_FAILED_BAD_TARGETS;
-
-        return SPELL_CAST_OK;
-    }
-};
 
 void AddSC_hinterlands()
 {
@@ -406,6 +392,4 @@ void AddSC_hinterlands()
     pNewScript->Name = "event_wildhammer_message";
     pNewScript->pProcessEventId = &ProcessEventId_WildhammerMessage;
     pNewScript->RegisterSelf();
-
-    RegisterSpellScript<GammeritaTurtleCamera>("spell_gammerita_turtle_camera");
 }

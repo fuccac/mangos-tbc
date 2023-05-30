@@ -145,9 +145,9 @@ enum VashjActions
     VASHJ_TAINTED_ELEMENTAL,
 };
 
-struct boss_lady_vashjAI : public CombatAI
+struct boss_lady_vashjAI : public RangedCombatAI
 {
-    boss_lady_vashjAI(Creature* creature) : CombatAI(creature, VASHJ_ACTION_MAX), m_instance(static_cast<instance_serpentshrine_cavern*>(creature->GetInstanceData()))
+    boss_lady_vashjAI(Creature* creature) : RangedCombatAI(creature, VASHJ_ACTION_MAX), m_instance(static_cast<instance_serpentshrine_cavern*>(creature->GetInstanceData()))
     {
         AddTimerlessCombatAction(VASHJ_ACTION_PHASE_2, true);
         AddCombatAction(VASHJ_ACTION_PERSUASION, true);
@@ -310,7 +310,7 @@ struct boss_lady_vashjAI : public CombatAI
 
     void SummonedMovementInform(Creature* summoned, uint32 motionType, uint32 data) override
     {
-        if (motionType != PATH_MOTION_TYPE)
+        if (motionType != WAYPOINT_MOTION_TYPE)
             return;
 
         if (data == WAYPOINT_MOVE_FINAL_POINT_SPOREBAT && summoned->GetMotionMaster()->GetPathId() >= PATH_ID_4)
@@ -318,8 +318,8 @@ struct boss_lady_vashjAI : public CombatAI
             uint32 randomPath = urand(1, PATH_ID_COUNT); // 1-3
             summoned->StopMoving();
             summoned->GetMotionMaster()->Clear(false, true);
+            summoned->GetMotionMaster()->MoveWaypoint(randomPath);
             summoned->SetWalk(false);
-            summoned->GetMotionMaster()->MovePath(randomPath, PATH_FROM_ENTRY, FORCED_MOVEMENT_RUN, true, 0.f, true);
         }
     }
 
@@ -358,7 +358,7 @@ struct boss_lady_vashjAI : public CombatAI
                     case 38492: pathId = PATH_ID_6; break;
                     case 38493: pathId = PATH_ID_5; break;
                 }
-                summoned->GetMotionMaster()->MovePath(pathId, PATH_FROM_ENTRY, FORCED_MOVEMENT_RUN, true);
+                summoned->GetMotionMaster()->MoveWaypoint(pathId);
                 summoned->AI()->SetReactState(REACT_PASSIVE);
                 summoned->SetCorpseDelay(5);
                 break;
@@ -774,6 +774,6 @@ void AddSC_boss_lady_vashj()
     pNewScript->pGOUse = &GOUse_go_vashj_bridge;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<VashjPersuasion>("spell_vashj_persuasion");
+    RegisterScript<VashjPersuasion>("spell_vashj_persuasion");
     RegisterSpellScript<SporeDropEffect>("spell_spore_drop_effect");
 }

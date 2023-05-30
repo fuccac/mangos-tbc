@@ -20,7 +20,7 @@
 #include "Grids/GridNotifiersImpl.h"
 #include "Grids/CellImpl.h"
 #include "Log.h"
-#include "Util/Errors.h"
+#include "Errors.h"
 #include "Entities/Player.h"
 
 Camera::Camera(Player* pl) : m_owner(*pl), m_source(pl)
@@ -91,7 +91,7 @@ void Camera::SetView(WorldObject* obj, bool update_far_sight_field /*= true*/)
 
 void Camera::Event_ViewPointVisibilityChanged()
 {
-    if (!m_owner.HasAtClient(m_source))
+    if (!m_owner.HaveAtClient(m_source))
         ResetView();
 }
 
@@ -106,7 +106,7 @@ void Camera::Event_AddedToWorld()
     MANGOS_ASSERT(grid);
     grid->AddWorldObject(this);
 
-    UpdateVisibilityForOwner(true);
+    UpdateVisibilityForOwner();
 }
 
 void Camera::Event_RemovedFromWorld()
@@ -143,10 +143,10 @@ template void Camera::UpdateVisibilityOf(Corpse*, UpdateData&, WorldObjectSet&);
 template void Camera::UpdateVisibilityOf(GameObject*, UpdateData&, WorldObjectSet&);
 template void Camera::UpdateVisibilityOf(DynamicObject*, UpdateData&, WorldObjectSet&);
 
-void Camera::UpdateVisibilityForOwner(bool addToWorld)
+void Camera::UpdateVisibilityForOwner()
 {
     MaNGOS::VisibleNotifier notifier(*this);
-    Cell::VisitAllObjects(m_source, notifier, addToWorld ? MAX_VISIBILITY_DISTANCE : m_source->GetVisibilityData().GetVisibilityDistance(), false);
+    Cell::VisitAllObjects(m_source, notifier, m_source->GetVisibilityData().GetVisibilityDistance(), false);
     notifier.Notify();
 }
 

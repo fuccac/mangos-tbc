@@ -19,7 +19,7 @@ enum
     NPC_NARALEX     = 3679,
     NPC_DISCIPLE    = 3678,
 
-    SAY_INTRO       = 2101,                             // Say when the first 4 encounter are DONE
+    SAY_INTRO       = -1043000,                             // Say when the first 4 encounter are DONE
 
     GO_MYSTERIOUS_CHEST     = 180055,                       // used for quest 7944; spawns in the instance only if one of the players has the quest
 
@@ -44,12 +44,8 @@ class instance_wailing_caverns : public ScriptedInstance
         const char* Save() const override { return m_strInstData.c_str(); }
         void Load(const char* chrIn) override;
 
-        void DespawnAll(); // after naralex leaves
-
     protected:
         uint32 m_auiEncounter[MAX_ENCOUNTER];
         std::string m_strInstData;
-
-        GuidVector m_spawns;
 };
 #endif

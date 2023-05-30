@@ -17,7 +17,7 @@
  */
 
 #include "OutdoorPvPZM.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "World/World.h"
 #include "Globals/ObjectMgr.h"
 #include "Entities/Object.h"
@@ -49,7 +49,7 @@ OutdoorPvPZM::OutdoorPvPZM() : OutdoorPvP(),
     }
 
     // initially set graveyard owner to neither faction
-    SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, GRAVEYARD_ZONE_TWIN_SPIRE, TEAM_INVALID, 530);
+    sObjectMgr.SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, GRAVEYARD_ZONE_TWIN_SPIRE, TEAM_INVALID);
 }
 
 void OutdoorPvPZM::FillInitialWorldStates(WorldPacket& data, uint32& count)
@@ -156,7 +156,7 @@ void OutdoorPvPZM::HandlePlayerKillInsideArea(Player* player)
             GameObjectInfo const* info = capturePoint->GetGOInfo();
             if (info && player->IsWithinDistInMap(capturePoint, info->capturePoint.radius))
             {
-                player->CastSpell(nullptr, player->GetTeam() == ALLIANCE ? SPELL_ZANGA_TOWER_TOKEN_ALLIANCE : SPELL_ZANGA_TOWER_TOKEN_HORDE, TRIGGERED_OLD_TRIGGERED);
+                player->CastSpell(player, player->GetTeam() == ALLIANCE ? SPELL_ZANGA_TOWER_TOKEN_ALLIANCE : SPELL_ZANGA_TOWER_TOKEN_HORDE, TRIGGERED_OLD_TRIGGERED);
                 return;
             }
         }
@@ -164,12 +164,8 @@ void OutdoorPvPZM::HandlePlayerKillInsideArea(Player* player)
 }
 
 // process the capture events
-bool OutdoorPvPZM::HandleEvent(uint32 eventId, Object* source, Object* /*target*/)
+bool OutdoorPvPZM::HandleEvent(uint32 eventId, GameObject* go, Unit* /*invoker*/)
 {
-    if (!source->IsGameObject())
-        return false;
-
-    GameObject* go = static_cast<GameObject*>(source);
     for (uint8 i = 0; i < MAX_ZM_TOWERS; ++i)
     {
         if (zangarmarshTowers[i] == go->GetEntry())
@@ -372,11 +368,7 @@ bool OutdoorPvPZM::HandleGameObjectUse(Player* player, GameObject* go)
     }
 
     // change the graveyard link
-    SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, GRAVEYARD_ZONE_TWIN_SPIRE, team, 530);
-    SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, ZONE_ID_STEAMVAULT, team, 545);
-    SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, ZONE_ID_UNDERBOG, team, 546);
-    SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, ZONE_ID_SLAVE_PENS, team, 547);
-    SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, ZONE_ID_SERPENTSHRINE_CAVERN, team, 548);
+    sObjectMgr.SetGraveYardLinkTeam(GRAVEYARD_ID_TWIN_SPIRE, GRAVEYARD_ZONE_TWIN_SPIRE, team);
 
     // apply zone buff
     if (m_graveyardOwner != TEAM_NONE)

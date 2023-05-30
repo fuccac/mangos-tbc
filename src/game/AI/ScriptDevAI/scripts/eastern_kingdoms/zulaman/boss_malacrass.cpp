@@ -29,8 +29,8 @@ enum
 {
     SAY_AGGRO                   = -1568045,
     SAY_ENRAGE                  = -1568046,
-    SAY_KILL1                   = 23593,
-    SAY_KILL2                   = 23594,
+    SAY_KILL1                   = -1568047,
+    SAY_KILL2                   = -1568048,
     SAY_SOUL_SIPHON             = -1568049,
     SAY_DRAIN_POWER             = -1568050,
     SAY_SPIRIT_BOLTS            = -1568051,
@@ -222,7 +222,7 @@ enum MalacrassActions
 
 struct boss_malacrassAI : public CombatAI
 {
-    boss_malacrassAI(Creature* creature) : CombatAI(creature, MALACRASS_ACTION_MAX), m_instance(static_cast<instance_zulaman*>(creature->GetInstanceData()))
+    boss_malacrassAI(Creature* creature) : CombatAI(creature, MALACRASS_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
     {
         AddCombatAction(MALACRASS_SPIRIT_BOLTS, 30000u);
         AddTimerlessCombatAction(MALACRASS_DRAIN_POWER_ENABLE, true);
@@ -232,17 +232,14 @@ struct boss_malacrassAI : public CombatAI
         AddCombatAction(MALACRASS_PLAYER_ABILITY_2, true);
         AddCombatAction(MALACRASS_PLAYER_ABILITY_3, true);
         AddCombatAction(MALACRASS_PLAYER_ABILITY_4, true);
-        m_creature->GetCombatManager().SetLeashingCheck([](Unit*, float /*x*/, float y, float /*z*/)
-        {
-            return y > 1025.f;
-        });
-        AddOnKillText(SAY_KILL1, SAY_KILL2);
         Reset();
     }
 
-    instance_zulaman* m_instance;
+    ScriptedInstance* m_instance;
 
     uint8 m_playerClass;
+
+    std::vector<uint32> m_addsEntryList;
 
     void Reset() override
     {
@@ -269,12 +266,11 @@ struct boss_malacrassAI : public CombatAI
 
     void ReceiveAIEvent(AIEventType eventType, Unit* /*sender*/, Unit* /*invoker*/, uint32 /*miscValue*/) override
     {
-        if (eventType == AI_EVENT_CUSTOM_A) // malacrass kill or wipe
+        if (eventType == AI_EVENT_CUSTOM_A) // encounter wipe
         {
-            auto& addsList = m_instance->GetMalacrassAddsEntryList();
             m_creature->ForcedDespawn();
             for (uint8 i = 0; i < MAX_ACTIVE_ADDS; ++i)
-                if (Creature* add = m_instance->GetSingleCreatureFromStorage(addsList[i], true))
+                if (Creature* add = m_instance->GetSingleCreatureFromStorage(m_addsEntryList[i], true))
                     add->ForcedDespawn();
         }
     }
@@ -285,17 +281,15 @@ struct boss_malacrassAI : public CombatAI
         if (!m_creature->IsAlive())
             return;
 
-        auto& addsList = m_instance->GetMalacrassAddsEntryList();
-
         // it's empty, so first time
-        if (addsList.empty())
+        if (m_addsEntryList.empty())
         {
-            addsList.resize(MAX_ACTIVE_ADDS);
+            m_addsEntryList.resize(MAX_ACTIVE_ADDS);
 
             for (uint8 i = 0; i < MAX_ACTIVE_ADDS; ++i)
             {
                 uint8 addVersion = urand(0, 1);
-                addsList[i] = aSpawnEntries[i][addVersion];
+                m_addsEntryList[i] = aSpawnEntries[i][addVersion];
                 Creature* creature = m_creature->SummonCreature(aSpawnEntries[i][addVersion], m_aAddPositions[i][0], m_aAddPositions[i][1], m_aAddPositions[i][2], m_aAddPositions[i][3], TEMPSPAWN_DEAD_DESPAWN, 0);
                 creature->SetCorpseDelay(5);
             }
@@ -309,10 +303,10 @@ struct boss_malacrassAI : public CombatAI
             for (uint8 i = 0; i < MAX_ACTIVE_ADDS; ++i)
             {
                 // If we already have the creature on the map, then don't summon it
-                if (m_instance->GetSingleCreatureFromStorage(addsList[i], true))
+                if (m_instance->GetSingleCreatureFromStorage(m_addsEntryList[i], true))
                     continue;
 
-                m_creature->SummonCreature(addsList[i], m_aAddPositions[i][0], m_aAddPositions[i][1], m_aAddPositions[i][2], m_aAddPositions[i][3], TEMPSPAWN_DEAD_DESPAWN, 0);
+                m_creature->SummonCreature(m_addsEntryList[i], m_aAddPositions[i][0], m_aAddPositions[i][1], m_aAddPositions[i][2], m_aAddPositions[i][3], TEMPSPAWN_DEAD_DESPAWN, 0);
             }
         }
     }
@@ -323,6 +317,14 @@ struct boss_malacrassAI : public CombatAI
 
         if (m_instance)
             m_instance->SetData(TYPE_MALACRASS, IN_PROGRESS);
+    }
+
+    void KilledUnit(Unit* pVictim) override
+    {
+        if (pVictim->GetTypeId() != TYPEID_PLAYER)
+            return;
+
+        DoScriptText(urand(0, 1) ? SAY_KILL1 : SAY_KILL2, m_creature);
     }
 
     void JustDied(Unit* /*killer*/) override
@@ -454,12 +456,26 @@ struct boss_malacrassAI : public CombatAI
                 break;
         }
     }
+
+    void UpdateAI(const uint32 diff) override
+    {
+        CombatAI::UpdateAI(diff);
+        if (m_creature->IsInCombat())
+            EnterEvadeIfOutOfCombatArea(diff);
+    }
 };
+
+
+
+UnitAI* GetAI_boss_malacrass(Creature* creature)
+{
+    return new boss_malacrassAI(creature);
+}
 
 void AddSC_boss_malacrass()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_malacrass";
-    pNewScript->GetAI = &GetNewAIInstance<boss_malacrassAI>;
+    pNewScript->GetAI = &GetAI_boss_malacrass;
     pNewScript->RegisterSelf();
 }

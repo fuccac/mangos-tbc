@@ -199,7 +199,7 @@ static const uint32 aRingMob[2][6] =
 };
 static const uint32 aRingBoss[] = {NPC_GOROSH, NPC_GRIZZLE, NPC_EVISCERATOR, NPC_OKTHOR, NPC_ANUBSHIAH, NPC_HEDRUM};
 
-enum RingOfLawPhases
+enum Phases
 {
     PHASE_MOBS                      = 0,
     PHASE_BOSS                      = 2,
@@ -259,7 +259,7 @@ struct npc_grimstoneAI : public npc_escortAI
     uint8 m_uiMobSpawnId;
     uint8 m_uiAliveSummonedMob;
 
-    RingOfLawPhases m_uiPhase;
+    Phases m_uiPhase;
 
     uint32 m_uiGladiatorId[MAX_THELDREN_ADDS];
 
@@ -268,7 +268,7 @@ struct npc_grimstoneAI : public npc_escortAI
 
     void Reset() override
     {
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
 
         m_uiEventTimer        = 1000;
         m_uiEventPhase        = 0;

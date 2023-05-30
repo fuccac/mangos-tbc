@@ -192,7 +192,7 @@ struct boss_ouroAI : public CombatAI
             DoCastSpellIfCan(nullptr, SPELL_SUMMON_OURO_MOUNDS, CAST_TRIGGERED);
             DoCastSpellIfCan(nullptr, SPELL_SUMMON_TRIGGER, CAST_TRIGGERED);
 
-            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
             m_creature->ForcedDespawn(2000);
             DisableCombatAction(OURO_SUBMERGE);
             DisableCombatAction(OURO_NO_MELEE_BURROW);
@@ -331,15 +331,15 @@ struct npc_ouro_spawnerAI : public Scripted_NoMovementAI
         if (summoned->GetEntry() == NPC_OURO)
         {
             m_creature->ForcedDespawn();
-            m_creature->SetRespawnDelay(604800);
+            m_creature->SetRespawnDelay(7200);
         }
     }
 
 };
 
-struct npc_ouro_moundAI : public ScriptedAI
+struct npc_ouro_moundAI : public ScriptedAI, public TimerManager
 {
-    npc_ouro_moundAI(Creature* creature) : ScriptedAI(creature, 0)
+    npc_ouro_moundAI(Creature* creature) : ScriptedAI(creature)
     {
         SetReactState(REACT_DEFENSIVE);
         AddCustomAction(1, true, [&]() { PickNewTarget(); });
@@ -379,6 +379,12 @@ struct npc_ouro_moundAI : public ScriptedAI
     {
         ScriptedAI::JustRespawned();
         ResetTimer(1, 1000); // delayed first target
+    }
+
+    void UpdateAI(const uint32 diff) override
+    {
+        UpdateTimers(diff);
+        ScriptedAI::UpdateAI(diff);
     }
 };
 
@@ -462,5 +468,5 @@ void AddSC_boss_ouro()
     pNewScript->GetAI = &GetNewAIInstance<OuroScarab>;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<PeriodicScarabTrigger>("spell_periodic_scarab_trigger");
+    RegisterAuraScript<PeriodicScarabTrigger>("spell_periodic_scarab_trigger");
 }

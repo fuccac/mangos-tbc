@@ -191,7 +191,7 @@ namespace Movement
             for (uint32 i = 1; i < path.size() - 1; ++i)
             {
                 Vector3 offset = path[i] - middle;
-                if (fabs(offset.x / 0.25f) >= MAX_OFFSET || fabs(offset.y / 0.25f) >= MAX_OFFSET || fabs(offset.z / 0.25f) >= MAX_OFFSET)
+                if (fabs(offset.x) >= MAX_OFFSET || fabs(offset.y) >= MAX_OFFSET || fabs(offset.z) >= MAX_OFFSET)
                 {
                     sLog.outError("MoveSplineInitArgs::_checkPathBounds check failed");
                     return false;
@@ -252,9 +252,9 @@ namespace Movement
                         {
                             // New cycle should preserve previous cycle's duration for some weird reason, even though
                             // the path is really different now. Developers are weird. Or this was just a simple oversight.
-                            // Since our splines precalculate length with zspeed in mind, if we want to find the desired
-                            // zspeed, we have to make a fake spline, calculate its duration and then compare it to the
-                            // desired duration, thus finding out how much the zspeed has to be increased for them to match.
+                            // Since our splines precalculate length with velocity in mind, if we want to find the desired
+                            // velocity, we have to make a fake spline, calculate its duration and then compare it to the
+                            // desired duration, thus finding out how much the velocity has to be increased for them to match.
                             MoveSpline tempSpline;
                             tempSpline.Initialize(args);
                             args.velocity = (float)tempSpline.Duration() / Duration();

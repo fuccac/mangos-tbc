@@ -23,9 +23,9 @@ enum
     SAY_ENTER = -1534060,
     SAY_MARK1 = -1534061,
     SAY_MARK2 = -1534062,
-    SAY_KILL1 = 18243,
-    SAY_KILL2 = 18244,
-    SAY_KILL3 = 18245,
+    SAY_KILL1 = -1534063,
+    SAY_KILL2 = -1534064,
+    SAY_KILL3 = -1534065,
     SOUND_DEATH = 11018,
 
     // abilities
@@ -52,7 +52,6 @@ struct boss_kazrogalAI : public CombatAI
         AddCombatAction(KAZROGAL_ACTION_WAR_STOMP, GetInitialActionTimer(KAZROGAL_ACTION_WAR_STOMP));
         AddCombatAction(KAZROGAL_ACTION_CRIPPLE, GetInitialActionTimer(KAZROGAL_ACTION_CRIPPLE));
         AddCombatAction(KAZROGAL_ACTION_MARK_OF_KAZROGAL, GetInitialActionTimer(KAZROGAL_ACTION_MARK_OF_KAZROGAL));
-        AddOnKillText(SAY_KILL1, SAY_KILL2, SAY_KILL3);
         Reset();
     }
 
@@ -102,6 +101,21 @@ struct boss_kazrogalAI : public CombatAI
         m_creature->PlayDirectSound(SOUND_DEATH);
         if (m_instance)
             m_instance->SetData(TYPE_KAZROGAL, DONE);
+    }
+
+    void KilledUnit(Unit* victim) override
+    {
+        if (victim->GetTypeId() != TYPEID_PLAYER)
+            return;
+
+        uint32 textId;
+        switch (urand(0, 2))
+        {
+            case 0: textId = SAY_KILL1; break;
+            case 1: textId = SAY_KILL2; break;
+            case 2: textId = SAY_KILL3; break;
+        }
+        DoScriptText(textId, m_creature);
     }
 
     void ExecuteAction(uint32 action) override
@@ -169,5 +183,5 @@ void AddSC_boss_kazrogal()
     pNewScript->GetAI = &GetNewAIInstance<boss_kazrogalAI>;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<MarkOfKazrogal>("spell_mark_of_kazrogal");
+    RegisterScript<MarkOfKazrogal>("spell_mark_of_kazrogal");
 }

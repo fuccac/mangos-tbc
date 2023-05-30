@@ -55,8 +55,8 @@ enum
     SAY_AGGRO1              = -1555011,
     SAY_INCITE_CHAOS        = -1555012,
     SAY_AGGRO2              = -1555013,
-    SAY_SLAY1               = 17573,
-    SAY_SLAY2               = 19528,
+    SAY_SLAY1               = -1555014,
+    SAY_SLAY2               = -1555015,
     SAY_HELP                = -1555016,
     SAY_DEATH               = -1555017,
 
@@ -106,7 +106,7 @@ struct boss_blackheart_the_inciterAI : public CombatAI
         AddCombatAction(BLACKHEART_CHARGE, 30000, 50000);
         AddCombatAction(BLACKHEART_KNOCKBACK, 10000, 14000);
         AddCustomAction(BLACKHEART_INCITE_TIMER, true, [&]() { HandleInciteEnd(); });
-        AddOnKillText(SAY_SLAY1, SAY_SLAY2);
+        Reset();
     }
 
     ScriptedInstance* m_instance;
@@ -122,6 +122,11 @@ struct boss_blackheart_the_inciterAI : public CombatAI
             case BLACKHEART_KNOCKBACK: return urand(15000, 30000);
             default: return 0;
         }
+    }
+
+    void KilledUnit(Unit* /*victim*/) override
+    {
+        DoScriptText(urand(0, 1) ? SAY_SLAY1 : SAY_SLAY2, m_creature);
     }
 
     void JustDied(Unit* /*killer*/) override

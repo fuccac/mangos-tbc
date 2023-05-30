@@ -19,8 +19,8 @@
 #include "Server/DBCStores.h"
 #include "Policies/Singleton.h"
 #include "Log.h"
-#include "Util/ProgressBar.h"
-#include "Util/Util.h"
+#include "ProgressBar.h"
+#include "Util.h"
 #include "Globals/Locales.h"
 #include "Globals/SharedDefines.h"
 #include "Server/SQLStorages.h"
@@ -88,7 +88,6 @@ DBCStorage <EmotesTextEntry> sEmotesTextStore(EmotesTextEntryfmt);
 //DBCStorage <FactionEntry> sFactionStore(FactionEntryfmt);
 DBCStorage <FactionTemplateEntry> sFactionTemplateStore(FactionTemplateEntryfmt);
 
-DBCStorage <GameObjectArtKitEntry> sGameObjectArtKitStore(GameObjectArtKitfmt);
 DBCStorage <GameObjectDisplayInfoEntry> sGameObjectDisplayInfoStore(GameObjectDisplayInfofmt);
 DBCStorage <GemPropertiesEntry> sGemPropertiesStore(GemPropertiesEntryfmt);
 
@@ -118,7 +117,6 @@ DBCStorage <ItemRandomPropertiesEntry> sItemRandomPropertiesStore(ItemRandomProp
 DBCStorage <ItemRandomSuffixEntry> sItemRandomSuffixStore(ItemRandomSuffixfmt);
 DBCStorage <ItemSetEntry> sItemSetStore(ItemSetEntryfmt);
 DBCStorage <LiquidTypeEntry> sLiquidTypeStore(LiquidTypefmt);
-DBCStorage <LightEntry> sLightStore(LightEntryfmt);
 DBCStorage <LockEntry> sLockStore(LockEntryfmt);
 
 DBCStorage <MailTemplateEntry> sMailTemplateStore(MailTemplateEntryfmt);
@@ -247,13 +245,6 @@ void LoadDBCStores(const std::string& dataPath)
 {
     std::string dbcPath = dataPath + "dbc/";
 
-    if (!MaNGOS::Filesystem::exists(dbcPath))
-    {
-        sLog.outError("DBC directory does not exist: %s", dataPath.c_str());
-        Log::WaitBeforeContinueIfNeed();
-        exit(1);
-    }
-
     const uint32 DBCFilesCount = 68;
 
     BarGoLink bar(DBCFilesCount);
@@ -316,7 +307,6 @@ void LoadDBCStores(const std::string& dataPath)
     // LoadDBC(availableDbcLocales, bar, bad_dbc_files, sFactionStore,             dbcPath, "Faction.dbc");
 
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sFactionTemplateStore,     dbcPath, "FactionTemplate.dbc");
-    LoadDBC(availableDbcLocales, bar, bad_dbc_files, sGameObjectArtKitStore,    dbcPath, "GameObjectArtKit.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sGameObjectDisplayInfoStore, dbcPath, "GameObjectDisplayInfo.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sGemPropertiesStore,       dbcPath, "GemProperties.dbc");
 
@@ -347,20 +337,17 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sItemRandomPropertiesStore, dbcPath, "ItemRandomProperties.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sItemRandomSuffixStore,    dbcPath, "ItemRandomSuffix.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sItemSetStore,             dbcPath, "ItemSet.dbc");
-    LoadDBC(availableDbcLocales, bar, bad_dbc_files, sLightStore,               dbcPath, "Light.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sLiquidTypeStore,          dbcPath, "LiquidType.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sLockStore,                dbcPath, "Lock.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sMailTemplateStore,        dbcPath, "MailTemplate.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sMapStore,                 dbcPath, "Map.dbc");
     {
         // repairs entry for netherstorm - should be moved to SQL
-        if (MapEntry const* mEntry = sMapStore.LookupEntry(550))
-        {
-            MapEntry* tempestKeepMap = new MapEntry(*mEntry);
-            tempestKeepMap->ghost_entrance_map = 530;
-            sMapStore.EraseEntry(550);
-            sMapStore.InsertEntry(tempestKeepMap, 550);
-        }
+        MapEntry const* mEntry = sMapStore.LookupEntry(550);
+        MapEntry* tempestKeepMap = new MapEntry(*mEntry);
+        tempestKeepMap->ghost_entrance_map = 530;
+        sMapStore.EraseEntry(550);
+        sMapStore.InsertEntry(tempestKeepMap, 550);
     }
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sQuestSortStore,           dbcPath, "QuestSort.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sRandomPropertiesPointsStore, dbcPath, "RandPropPoints.dbc");
@@ -377,19 +364,8 @@ void LoadDBCStores(const std::string& dataPath)
         if (!skillLine)
             continue;
 
-        std::set<uint32> wrongIds = { 4073, 12749, 19804, 13258, 13166 };
-        if (wrongIds.find(skillLine->spellId) != wrongIds.end())
-        {
-            // repairs entry for netherstorm - should be moved to SQL
-            auto fixedEntry = new SkillLineAbilityEntry(*skillLine);
-            fixedEntry->learnOnGetSkill = 0;
-            sSkillLineAbilityStore.EraseEntry(j);
-            sSkillLineAbilityStore.InsertEntry(fixedEntry, j);
-            skillLine = fixedEntry;
-        }
-
         SpellEntry const* spellInfo = sSpellTemplate.LookupEntry<SpellEntry>(skillLine->spellId);
-        if (spellInfo && (spellInfo->Attributes & (SPELL_ATTR_IS_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_DO_NOT_DISPLAY | SPELL_ATTR_DO_NOT_LOG)) == (SPELL_ATTR_IS_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_DO_NOT_DISPLAY | SPELL_ATTR_DO_NOT_LOG))
+        if (spellInfo && (spellInfo->Attributes & (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_HIDDEN_CLIENTSIDE | SPELL_ATTR_HIDE_IN_COMBAT_LOG)) == (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_HIDDEN_CLIENTSIDE | SPELL_ATTR_HIDE_IN_COMBAT_LOG))
         {
             for (unsigned int i = 1; i < sCreatureFamilyStore.GetNumRows(); ++i)
             {
@@ -953,20 +929,6 @@ uint32 GetCreatureModelRace(uint32 model_id)
         return 0;
     CreatureDisplayInfoExtraEntry const* extraEntry = sCreatureDisplayInfoExtraStore.LookupEntry(displayEntry->ExtendedDisplayInfoID);
     return extraEntry ? extraEntry->Race : 0;
-}
-
-uint32 GetDefaultMapLight(uint32 mapId)
-{
-    for (int32 i = sLightStore.GetNumRows(); i >= 0; --i)
-    {
-        LightEntry const* lightInfo = sLightStore.LookupEntry(uint32(i));
-        if (!lightInfo)
-            continue;
-
-        if (lightInfo->mapId == mapId && lightInfo->x == 0.0f && lightInfo->y == 0.0f && lightInfo->z == 0.0f)
-            return lightInfo->id;
-    }
-    return 0;
 }
 
 // script support functions

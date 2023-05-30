@@ -34,9 +34,9 @@ enum
     SAY_SPECIAL1                = -1532094,
     SAY_SPECIAL2                = -1532095,
     SAY_SPECIAL3                = -1532096,
-    SAY_SLAY1                   = 15124,
-    SAY_SLAY2                   = 15125,
-    SAY_SLAY3                   = 15126,
+    SAY_SLAY1                   = -1532097,
+    SAY_SLAY2                   = -1532098,
+    SAY_SLAY3                   = -1532099,
     SAY_SUMMON1                 = -1532100,
     SAY_SUMMON2                 = -1532101,
     SAY_DEATH                   = -1532102,
@@ -95,7 +95,6 @@ struct boss_malchezaarAI : public CombatAI
         AddCombatAction(MALCHEZAAR_SHADOW_NOVA, 35500u);
         AddCombatAction(MALCHEZAAR_SHADOW_WORD_PAIN, 20000u);
         AddCombatAction(MALCHEZAAR_ENFEEBLE, 30000u);
-        AddOnKillText(SAY_SLAY1, SAY_SLAY2, SAY_SLAY3);
     }
 
     ScriptedInstance* m_instance;
@@ -112,6 +111,16 @@ struct boss_malchezaarAI : public CombatAI
         // Reset equipment and attack
         SetEquipmentSlots(false, EQUIP_UNEQUIP, EQUIP_UNEQUIP, EQUIP_NO_CHANGE);
         m_creature->SetAttackTime(BASE_ATTACK, ATTACK_TIMER_DEFAULT);
+    }
+
+    void KilledUnit(Unit* /*victim*/) override
+    {
+        switch (urand(0, 2))
+        {
+            case 0: DoScriptText(SAY_SLAY1, m_creature); break;
+            case 1: DoScriptText(SAY_SLAY2, m_creature); break;
+            case 2: DoScriptText(SAY_SLAY3, m_creature); break;
+        }
     }
 
     void JustDied(Unit* /*killer*/) override
@@ -355,6 +364,6 @@ void AddSC_boss_prince_malchezaar()
     pNewScript->GetAI = &GetNewAIInstance<boss_malchezaarAI>;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<Enfeeble>("spell_enfeeble");
+    RegisterScript<Enfeeble>("spell_enfeeble");
     RegisterSpellScript<EnfeebleRemoval>("spell_enfeeble_removal");
 }

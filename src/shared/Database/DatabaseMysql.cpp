@@ -18,12 +18,12 @@
 
 #ifndef DO_POSTGRESQL
 
-#include "Util/Util.h"
+#include "Util.h"
 #include "Policies/Singleton.h"
 #include "Platform/Define.h"
-#include "Multithreading/Threading.h"
+#include "Threading.h"
 #include "DatabaseEnv.h"
-#include "Util/Timer.h"
+#include "Timer.h"
 
 size_t DatabaseMysql::db_count = 0;
 
@@ -301,6 +301,7 @@ SqlPreparedStatement* MySQLConnection::CreateStatement(const std::string& fmt)
 {
     return new MySqlPreparedStatement(fmt, *this, mMysql);
 }
+
 
 //////////////////////////////////////////////////////////////////////////
 MySqlPreparedStatement::MySqlPreparedStatement(const std::string& fmt, SqlConnection& conn, MYSQL* mysql) : SqlPreparedStatement(fmt, conn),

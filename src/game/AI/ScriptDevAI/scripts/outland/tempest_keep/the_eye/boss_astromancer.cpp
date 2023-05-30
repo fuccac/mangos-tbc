@@ -198,7 +198,7 @@ struct boss_high_astromancer_solarianAI : public CombatAI
         {
             case NPC_ASTROMANCER_SOLARIAN_SPOTLIGHT:
                 // Note: this should be moved to database
-                pSummoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+                pSummoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
                 pSummoned->CastSpell(pSummoned, SPELL_SPOTLIGHT, TRIGGERED_NONE);
                 m_vSpotLightsGuidVector.push_back(pSummoned->GetObjectGuid());
                 break;
@@ -399,9 +399,9 @@ enum SolarianPriestActions
     SOLARIAN_PRIEST_ACTION_MAX,
 };
 
-struct mob_solarium_priestAI : public CombatAI
+struct mob_solarium_priestAI : public RangedCombatAI
 {
-    mob_solarium_priestAI(Creature* creature) : CombatAI(creature, SOLARIAN_PRIEST_ACTION_MAX)
+    mob_solarium_priestAI(Creature* creature) : RangedCombatAI(creature, SOLARIAN_PRIEST_ACTION_MAX)
     {
         AddCombatAction(SOLARIAN_PRIEST_HEAL, 9000u);
         AddCombatAction(SOLARIAN_PRIEST_ARCANE_TORRENT, 15000u);
@@ -514,9 +514,9 @@ void AddSC_boss_high_astromancer_solarian()
     pNewScript->GetAI = &GetNewAIInstance<mob_solarium_priestAI>;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<WrathOfTheAstromancer>("spell_wrath_of_the_astromancer");
+    RegisterAuraScript<WrathOfTheAstromancer>("spell_wrath_of_the_astromancer");
     RegisterSpellScript<WOTAOldMainCastAndJump>("spell_wota_main_cast_and_jump");
-    RegisterSpellScript<WOTAOldDOT>("spell_wota_dot");
+    RegisterAuraScript<WOTAOldDOT>("spell_wota_dot");
     RegisterSpellScript<WOTAOldSearch>("spell_wota_search");
     RegisterSpellScript<WOTAOldRemove>("spell_wota_remove");
 }

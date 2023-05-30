@@ -224,7 +224,7 @@ void Player::UpdateMaxPower(Powers power)
 void Player::UpdateAttackPowerAndDamage(bool ranged)
 {
     float val2 = 0.0f;
-    float level = float(GetLevel());
+    float level = float(getLevel());
 
     UnitMods unitMod = ranged ? UNIT_MOD_ATTACK_POWER_RANGED : UNIT_MOD_ATTACK_POWER;
 
@@ -263,16 +263,48 @@ void Player::UpdateAttackPowerAndDamage(bool ranged)
         {
             case CLASS_WARRIOR:      val2 = level * 3.0f + GetStat(STAT_STRENGTH) * 2.0f                    - 20.0f; break;
             case CLASS_PALADIN:      val2 = level * 3.0f + GetStat(STAT_STRENGTH) * 2.0f                    - 20.0f; break;
-            case CLASS_ROGUE:        val2 = level * 2.0f + GetStat(STAT_STRENGTH) + GetStat(STAT_AGILITY)   - 20.0f; break;
-            case CLASS_HUNTER:       val2 = level * 2.0f + GetStat(STAT_STRENGTH) + GetStat(STAT_AGILITY)   - 20.0f; break;
+            case CLASS_ROGUE:        val2 = level * 2.0f + GetStat(STAT_STRENGTH) + GetStat(STAT_AGILITY) - 20.0f; break;
+            case CLASS_HUNTER:       val2 = level * 2.0f + GetStat(STAT_STRENGTH) + GetStat(STAT_AGILITY) - 20.0f; break;
             case CLASS_SHAMAN:       val2 = level * 2.0f + GetStat(STAT_STRENGTH) * 2.0f                    - 20.0f; break;
             case CLASS_DRUID:
             {
-                val2 = level * 3.0f + GetStat(STAT_STRENGTH) * 2.0f - 20.0f;
-                if (ShapeshiftForm form = GetShapeshiftForm())
-                    if (SpellShapeshiftFormEntry const* entry = sSpellShapeshiftFormStore.LookupEntry(form))
-                        if (entry->flags1 & SHAPESHIFT_FLAG_AGILITY_ATTACK_BONUS)
-                            val2 += GetStat(STAT_AGILITY);
+                ShapeshiftForm form = GetShapeshiftForm();
+                // Check if Predatory Strikes is skilled
+                float mLevelMult = 0.0;
+                switch (form)
+                {
+                    case FORM_CAT:
+                    case FORM_BEAR:
+                    case FORM_DIREBEAR:
+                    case FORM_MOONKIN:
+                    {
+                        Unit::AuraList const& mDummy = GetAurasByType(SPELL_AURA_DUMMY);
+                        for (auto itr : mDummy)
+                        {
+                            // Predatory Strikes
+                            if (itr->GetSpellProto()->SpellIconID == 1563)
+                            {
+                                mLevelMult = itr->GetModifier()->m_amount / 100.0f;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                    default: break;
+                }
+
+                switch (form)
+                {
+                    case FORM_CAT:
+                        val2 = getLevel() * (mLevelMult + 2.0f) + GetStat(STAT_STRENGTH) * 2.0f + GetStat(STAT_AGILITY) - 20.0f; break;
+                    case FORM_BEAR:
+                    case FORM_DIREBEAR:
+                        val2 = getLevel() * (mLevelMult + 3.0f) + GetStat(STAT_STRENGTH) * 2.0f - 20.0f; break;
+                    case FORM_MOONKIN:
+                        val2 = getLevel() * (mLevelMult + 1.5f) + GetStat(STAT_STRENGTH) * 2.0f - 20.0f; break;
+                    default:
+                        val2 = GetStat(STAT_STRENGTH) * 2.0f - 20.0f; break;
+                }
                 break;
             }
             case CLASS_MAGE:    val2 =              GetStat(STAT_STRENGTH)                         - 10.0f; break;
@@ -365,9 +397,9 @@ void Player::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, fl
     float weapon_mindamage = GetBaseWeaponDamage(attType, MINDAMAGE, index);
     float weapon_maxdamage = GetBaseWeaponDamage(attType, MAXDAMAGE, index);
 
-    if (IsNoWeaponShapeShift())                             // check if player is in shapeshift which doesnt use weapon
+    if (IsInFeralForm())                                    // check if player is druid and in cat or bear forms, non main hand attacks not allowed for this mode so not check attack type
     {
-        uint32 lvl = GetLevel();
+        uint32 lvl = getLevel();
         if (lvl > 60)
             lvl = 60;
 
@@ -384,9 +416,8 @@ void Player::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, fl
         total_value += GetEnchantmentModifier(attType);
         if (attType == RANGED_ATTACK)                      // add ammo DPS to ranged damage
         {
-            auto ammoDps = GetAmmoDPS();
-            weapon_mindamage += ammoDps.first * att_speed;
-            weapon_maxdamage += ammoDps.second * att_speed;
+            weapon_mindamage += GetAmmoDPS() * att_speed;
+            weapon_maxdamage += GetAmmoDPS() * att_speed;
         }
 
         if (index != 0)
@@ -629,7 +660,7 @@ void Player::UpdateManaRegen()
 {
     // need to award mana based on previous rate - Patch 2.2
     if (GetHealth() > 0) // on death we must never do this
-        RegenerateAll(std::min(uint32(REGEN_TIME_FULL), m_regenTimer));
+        RegenerateAll();
 
     float Intellect = GetStat(STAT_INTELLECT);
     // Mana regen from spirit and intellect
@@ -667,7 +698,7 @@ void Player::UpdateEnergyRegen()
 {
     // need to award mana based on previous rate - Patch 2.2
     if (GetHealth() > 0) // on death we must never do this
-        RegenerateAll(std::min(uint32(REGEN_TIME_FULL), m_regenTimer));
+        RegenerateAll();
 
     m_energyRegenRate = GetTotalAuraMultiplierByMiscValue(SPELL_AURA_MOD_POWER_REGEN_PERCENT, POWER_ENERGY);
 }
@@ -788,7 +819,7 @@ void Creature::UpdateAttackPowerAndDamage(bool ranged)
 
     if (ranged)
     {
-        UpdateDamagePhysical(RANGED_ATTACK);
+        UpdateDamagePhysical(OFF_ATTACK);
         return;
     }
 

@@ -140,7 +140,6 @@ class SpellAuraHolder
         bool IsDeleted() const { return m_deleted;}
         bool IsEmptyHolder() const;
         bool IsSaveToDbHolder() const;
-        bool IsCharm() const;
 
         void SetDeleted() { m_deleted = true; m_spellAuraHolderState = SPELLAURAHOLDER_STATE_REMOVING; }
 
@@ -166,13 +165,9 @@ class SpellAuraHolder
         uint32 GetAuraCharges() const { return m_procCharges; }
         void SetAuraCharges(uint32 charges, bool update = true);
 
-        // SpellMods
         bool DropAuraCharge();                               // return true if last charge dropped
-        void ResetSpellModCharges();
-        bool HasModifier(const uint64& modId) const;
 
-        uint32 GetAuraApplyTime() const { return m_applyTime; }
-        uint32 GetAuraApplyMSTime() const { return m_applyMSTime; } // milliseconds time
+        time_t GetAuraApplyTime() const { return m_applyTime; }
 
         void SetRemoveMode(AuraRemoveMode mode) { m_removeMode = mode; }
         void SetLoadedState(ObjectGuid const& casterGUID, ObjectGuid const& itemGUID, uint32 stackAmount, uint32 charges, int32 maxduration, int32 duration)
@@ -187,7 +182,6 @@ class SpellAuraHolder
 
         bool HasMechanic(uint32 mechanic) const;
         bool HasMechanicMask(uint32 mechanicMask) const;
-        bool IsDispellableByMask(uint32 dispelMask, Unit const* caster, SpellEntry const* spellInfo) const;
 
         void UpdateAuraDuration();
         void SendAuraDurationForTarget(uint32 slot = MAX_AURAS);
@@ -200,12 +194,6 @@ class SpellAuraHolder
         void SetCreationDelayFlag();
 
         bool HasAuraType(AuraType type);
-
-        bool IsProcReady(TimePoint const& now) const;
-        void SetProcCooldown(std::chrono::milliseconds cooldown, TimePoint const& now);
-
-        bool IsReducedProcChancePast60() { return m_reducedProcChancePast60; }
-        void SetReducedProcChancePast60() { m_reducedProcChancePast60 = true; }
 
         // Scripting system
         AuraScript* GetAuraScript() const { return m_auraScript; }
@@ -225,7 +213,6 @@ class SpellAuraHolder
         ObjectGuid m_casterGuid;
         ObjectGuid m_castItemGuid;                          // it is NOT safe to keep a pointer to the item because it may get deleted
         time_t m_applyTime;
-        uint32 m_applyMSTime;
         SpellEntry const* m_triggeredBy;                    // Spell responsible for this holder
         SpellAuraHolderState m_spellAuraHolderState;        // State used to be sure init part is finished (ex there is still some aura to add or effect to process)
 
@@ -252,10 +239,6 @@ class SpellAuraHolder
         bool m_deleted: 1;
         bool m_skipUpdate: 1;
 
-        TimePoint m_procCooldown;
-
-        bool m_reducedProcChancePast60;
-
         // Scripting System
         AuraScript* m_auraScript;
 };
@@ -277,7 +260,7 @@ typedef void(Aura::*pAuraHandler)(bool Apply, bool Real);
 class Aura
 {
         friend struct ReapplyAffectedPassiveAurasHelper;
-        friend Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster, Item* castItem, uint64 scriptValue);
+        friend Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster, Item* castItem);
 
     public:
         // aura handlers
@@ -436,7 +419,6 @@ class Aura
         void HandlePrayerOfMending(bool apply, bool Real);
         void HandleAuraDetaunt(bool Apply, bool Real);
         void HandleOverrideClassScript(bool apply, bool real);
-        void HandleAuraPhase(bool apply, bool real);
 
         virtual ~Aura();
 
@@ -468,6 +450,8 @@ class Aura
             return maxDuration > 0 && m_modifier.periodictime > 0 ? maxDuration / m_modifier.periodictime : 0;
         }
         uint32 GetStackAmount() const { return GetHolder()->GetStackAmount(); }
+
+        bool DropAuraCharge();                               // return true if last charge dropped
 
         void SetLoadedState(int32 damage, uint32 periodicTime)
         {
@@ -501,7 +485,6 @@ class Aura
         void TriggerSpellWithValue();
 
         // more limited that used in future versions (spell_affect table based only), so need be careful with backporting uses
-        ClassFamilyMask GetAuraSpellClassMask() const;
         bool isAffectedOnSpell(SpellEntry const* spell) const;
         bool CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const;
 
@@ -517,35 +500,26 @@ class Aura
         void UseMagnet() { m_magnetUsed = true; }
         bool IsMagnetUsed() const { return m_magnetUsed; }
 
-        static uint32 CalculateAuraEffectValue(Unit* caster, Unit* target, SpellEntry const* spellProto, SpellEffectIndex effIdx, uint32 value);
-
         // Scripting system
         AuraScript* GetAuraScript() const { return GetHolder()->GetAuraScript(); }
-        // Variable storage
-        void SetScriptValue(uint64 value) { m_scriptValue = value; }
-        uint64 GetScriptValue() { return m_scriptValue; }
-        void SetScriptStorage(ScriptStorage* storage) { m_storage = storage; } // do not set more than once
-        ScriptStorage* GetScriptStorage() { return m_storage; }
         // hooks
-        void OnAuraInit();
         int32 OnAuraValueCalculate(Unit* caster, int32 currentValue);
-        void OnDamageCalculate(Unit* victim, int32& advertisedBenefit, float& totalMod);
+        void OnDamageCalculate(int32& advertisedBenefit, float& totalMod);
         void OnApply(bool apply);
         void OnAfterApply(bool apply);
         bool OnCheckProc(ProcExecutionData& data);
         SpellAuraProcResult OnProc(ProcExecutionData& data);
-        void OnAbsorb(int32& currentAbsorb, int32& remainingDamage, uint32& reflectedSpellId, int32& reflectDamage, bool& preventedDeath, bool& dropCharge);
+        void OnAbsorb(int32& currentAbsorb, uint32& reflectedSpellId, int32& reflectDamage, bool& preventedDeath);
         void OnManaAbsorb(int32& currentAbsorb);
         void OnAuraDeathPrevention(int32& remainingDamage);
         void OnPeriodicTrigger(PeriodicTriggerData& data);
         void OnPeriodicDummy();
         void OnPeriodicTickEnd();
         void OnPeriodicCalculateAmount(uint32& amount);
-        void OnHeartbeat();
-        uint32 GetAuraScriptCustomizationValue();
         // Hook Requirements
         void ForcePeriodicity(uint32 periodicTime);
-
+        void SetScriptValue(uint64 value) { m_scriptValue = value; }
+        uint64 GetScriptValue() { return m_scriptValue; }
     protected:
         Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster = nullptr, Item* castItem = nullptr);
 
@@ -584,7 +558,6 @@ class Aura
 
         // Scripting system
         uint64 m_scriptValue; // persistent value for spell script state
-        ScriptStorage* m_storage;
     private:
         void ReapplyAffectedPassiveAuras(Unit* target, bool owner_mode);
 };
@@ -611,6 +584,19 @@ class PersistentAreaAura : public Aura
         void Update(uint32 diff) override;
 };
 
+class SingleEnemyTargetAura : public Aura
+{
+        friend Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster, Item* castItem);
+
+    public:
+        virtual ~SingleEnemyTargetAura();
+        Unit* GetTriggerTarget() const override;
+
+    protected:
+        SingleEnemyTargetAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster  = nullptr, Item* castItem = nullptr);
+        ObjectGuid m_castersTargetGuid;
+};
+
 // Used for GO Area Auras
 class GameObjectAura : public Aura
 {
@@ -622,6 +608,6 @@ class GameObjectAura : public Aura
         void Update(uint32 diff) override;
 };
 
-Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster = nullptr, Item* castItem = nullptr, uint64 scriptValue = 0);
+Aura* CreateAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster = nullptr, Item* castItem = nullptr);
 SpellAuraHolder* CreateSpellAuraHolder(SpellEntry const* spellproto, Unit* target, WorldObject* caster, Item* castItem = nullptr, SpellEntry const* triggeredBy = nullptr);
 #endif

@@ -44,11 +44,12 @@
  #include "Metric/Metric.h"
 #endif
 
-#include <time.h>
-
 Map::~Map()
 {
     UnloadAll(true);
+
+    if (!m_scriptSchedule.empty())
+        sScriptMgr.DecreaseScheduledScriptCount(m_scriptSchedule.size());
 
     if (m_persistentState)
         m_persistentState->SetUsedByMapState(nullptr);         // field pointer can be deleted after this
@@ -83,16 +84,6 @@ TimePoint Map::GetCurrentClockTime() const
 uint32 Map::GetCurrentDiff() const
 {
     return World::GetCurrentDiff();
-}
-
-time_t Map::GetCurrentTime_t() const
-{
-    return m_curTime;
-}
-
-tm Map::GetCurrentTime_tm() const
-{
-    return m_curTimeTm;
 }
 
 GenericTransport* Map::GetTransport(ObjectGuid guid)
@@ -160,8 +151,7 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnMode)
       m_VisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_persistentState(nullptr),
       m_activeNonPlayersIter(m_activeNonPlayers.end()), m_onEventNotifiedIter(m_onEventNotifiedObjects.end()),
       i_gridExpiry(expiry), m_TerrainData(sTerrainMgr.LoadTerrain(id)),
-      i_data(nullptr), i_script_id(0), m_transportsIterator(m_transports.begin()), m_spawnManager(*this),
-      m_variableManager(this), m_defaultLight(GetDefaultMapLight(id))
+      i_data(nullptr), i_script_id(0), m_transportsIterator(m_transports.begin())
 {
     m_weatherSystem = new WeatherSystem(this);
 }
@@ -195,13 +185,7 @@ void Map::Initialize(bool loadInstanceData /*= true*/)
 
     sObjectMgr.LoadActiveEntities(this);
 
-    m_graveyardManager.Init(this);
-
     LoadTransports();
-
-    m_variableManager.Initialize(m_persistentState->GetCompletedEncountersMask());
-
-    m_spawnManager.Initialize();
 }
 
 void Map::InitVisibilityDistance()
@@ -429,8 +413,6 @@ bool Map::Add(Player* player)
     EnsureGridLoadedAtEnter(cell, player);
     player->AddToWorld();
 
-    // TODO: Aggregate all of these into one packet
-
     SendInitSelf(player);
     SendInitTransports(player);
 
@@ -448,7 +430,8 @@ bool Map::Add(Player* player)
 }
 
 template<class T>
-void Map::Add(T* obj)
+void
+Map::Add(T* obj)
 {
     MANGOS_ASSERT(obj);
 
@@ -647,7 +630,7 @@ bool Map::loaded(const GridPair& p) const
 void Map::VisitNearbyCellsOf(WorldObject* obj, TypeContainerVisitor<MaNGOS::ObjectUpdater, GridTypeMapContainer> &gridVisitor, TypeContainerVisitor<MaNGOS::ObjectUpdater, WorldTypeMapContainer> &worldVisitor)
 {
     // lets update mobs/objects in ALL visible cells around player!
-    CellArea area = Cell::CalculateCellArea(obj->GetPositionX(), obj->GetPositionY(), obj->IsInWorld() ? obj->GetVisibilityData().GetVisibilityDistance() : GetVisibilityDistance());
+    CellArea area = Cell::CalculateCellArea(obj->GetPositionX(), obj->GetPositionY(), GetVisibilityDistance());
 
     for (uint32 x = area.low_bound.x_coord; x <= area.high_bound.x_coord; ++x)
     {
@@ -679,20 +662,12 @@ void Map::Update(const uint32& t_diff)
 });
 #endif
 
-    m_curTime = time(nullptr);
-
-#ifdef _MSC_VER
-    localtime_s(&m_curTimeTm, &m_curTime);
-#else
-    localtime_r(&m_curTime, &m_curTimeTm);
-#endif
 
     uint64 count = 0;
 
     m_dyn_tree.update(t_diff);
 
     GetMessager().Execute(this);
-    m_spawnManager.Update();
 
     /// update active cells around players and active objects
     resetMarkedCells();
@@ -895,7 +870,8 @@ void Map::Remove(Player* player, bool remove)
 }
 
 template<class T>
-void Map::Remove(T* obj, bool remove)
+void
+Map::Remove(T* obj, bool remove)
 {
     CellPair p = MaNGOS::ComputeCellPair(obj->GetPositionX(), obj->GetPositionY());
     if (p.x_coord >= TOTAL_NUMBER_OF_CELLS_PER_MAP || p.y_coord >= TOTAL_NUMBER_OF_CELLS_PER_MAP)
@@ -923,20 +899,20 @@ void Map::Remove(T* obj, bool remove)
     UpdateObjectVisibility(obj, cell, p);                   // i think will be better to call this function while object still in grid, this changes nothing but logically is better(as for me)
     RemoveFromGrid(obj, grid, cell);
 
-    m_objRemoveList.insert(obj->GetObjectGuid());
-
+    obj->ResetMap();
     if (remove)
+    {
         // if option set then object already saved at this moment
         if (!sWorld.getConfig(CONFIG_BOOL_SAVE_RESPAWN_TIME_IMMEDIATELY))
-            obj->SaveRespawnTime(); // requires map not being reset
+            obj->SaveRespawnTime();
 
-    obj->ResetMap();
-        
-    if (remove) // Note: In case resurrectable corpse and pet its removed from global lists in own destructor
+        // Note: In case resurrectable corpse and pet its removed from global lists in own destructor
         delete obj;
+    }
 }
 
-void Map::PlayerRelocation(Player* player, float x, float y, float z, float orientation)
+void
+Map::PlayerRelocation(Player* player, float x, float y, float z, float orientation)
 {
     MANGOS_ASSERT(player);
 
@@ -1021,10 +997,12 @@ void Map::GameObjectRelocation(GameObject* go, float x, float y, float z, float 
         AddToGrid(go, newGrid, new_cell);
         go->GetViewPoint().Event_GridChanged(&(*newGrid)(new_cell.CellX(), new_cell.CellY()));
     }
-
-    go->Relocate(x, y, z, orientation);
-    go->UpdateModelPosition();
-    go->UpdateObjectVisibility();
+    else
+    {
+        go->Relocate(x, y, z, orientation);
+        go->UpdateModelPosition();
+        go->UpdateObjectVisibility();
+    }
 }
 
 bool Map::CreatureCellRelocation(Creature* c, const Cell& new_cell)
@@ -1086,10 +1064,6 @@ bool Map::UnloadGrid(const uint32& x, const uint32& y, bool pForce)
             return false;
 
         DEBUG_FILTER_LOG(LOG_FILTER_MAP_LOADING, "Unloading grid[%u,%u] for map %u", x, y, i_id);
-
-        ObjectGridStoper stoper(*grid);
-        stoper.StopN();
-
         ObjectGridUnloader unloader(*grid);
 
         // Finish remove and delete all creatures with delayed remove before moving to respawn grids
@@ -1103,12 +1077,6 @@ bool Map::UnloadGrid(const uint32& x, const uint32& y, bool pForce)
         RemoveAllObjectsInRemoveList();
 
         unloader.UnloadN();
-
-        // Unloading a grid can also add creatures to the list of objects to be
-        // removed, for example guardian pets. Remove these now to avoid they
-        // wouldn't actually be removed because the grid is already unloaded.
-        RemoveAllObjectsInRemoveList();
-
         delete getNGrid(x, y);
         setNGrid(nullptr, x, y);
     }
@@ -1162,9 +1130,6 @@ void Map::UpdateObjectVisibility(WorldObject* obj, Cell cell, const CellPair& ce
     MaNGOS::VisibleChangesNotifier notifier(*obj);
     TypeContainerVisitor<MaNGOS::VisibleChangesNotifier, WorldTypeMapContainer > player_notifier(notifier);
     cell.Visit(cellpair, player_notifier, *this, *obj, obj->GetVisibilityData().GetVisibilityDistance());
-    for (auto guid : notifier.GetUnvisitedGuids())
-        if (Player* player = GetPlayer(guid))
-            player->UpdateVisibilityOf(player->GetCamera().GetBody(), obj);
 }
 
 void Map::SendInitSelf(Player* player) const
@@ -1179,7 +1144,6 @@ void Map::SendInitSelf(Player* player) const
     if (GenericTransport* transport = player->GetTransport())
     {
         hasTransport = true;
-        // player->m_clientGUIDs.insert(transport->GetObjectGuid());
         transport->BuildCreateUpdateBlockForPlayer(&updateData, player);
     }
 
@@ -1189,15 +1153,15 @@ void Map::SendInitSelf(Player* player) const
     // build other passengers at transport also (they always visible and marked as visible and will not send at visibility update at add to map
     if (GenericTransport* transport = player->GetTransport())
     {
-        for (auto passenger : transport->GetPassengers())
+        for (auto itr : transport->GetPassengers())
         {
-            if (player != passenger)
+            if (player != itr)
             {
-                if (player->HasAtClient(passenger) || passenger->isVisibleForInState(player, player, false))
+                if (player->HaveAtClient(itr) || itr->isVisibleForInState(player, player, false))
                 {
-                    player->AddAtClient(passenger);
+                    player->m_clientGUIDs.insert(itr->GetObjectGuid());
                     hasTransport = true;
-                    passenger->BuildCreateUpdateBlockForPlayer(&updateData, player);
+                    itr->BuildCreateUpdateBlockForPlayer(&updateData, player);
                 }
             }
         }
@@ -1789,21 +1753,7 @@ bool DungeonMap::Reset(InstanceResetMethod method)
 
 void DungeonMap::PermBindAllPlayers(Player* player)
 {
-    Group* group = nullptr;
-    if (player)
-        group = player->GetGroup();
-    else
-    {
-        for (auto& itr : m_mapRefManager)
-        {
-            Player* plr = itr.getSource();
-            if (plr->GetGroup() && !plr->IsGameMaster())
-            {
-                group = plr->GetGroup();
-                break;
-            }
-        }
-    }
+    Group* group = player->GetGroup();
     // group members outside the instance group don't get bound
     for (auto& itr : m_mapRefManager)
     {
@@ -1869,8 +1819,8 @@ DungeonPersistentState* DungeonMap::GetPersistanceState() const
 
 /* ******* Battleground Instance Maps ******* */
 
-BattleGroundMap::BattleGroundMap(uint32 id, time_t expiry, uint32 InstanceId, uint8 spawnMode)
-    : Map(id, expiry, InstanceId, spawnMode)
+BattleGroundMap::BattleGroundMap(uint32 id, time_t expiry, uint32 InstanceId)
+    : Map(id, expiry, InstanceId, REGULAR_DIFFICULTY)
 {
 }
 
@@ -1952,14 +1902,13 @@ bool Map::CanEnter(Player* player)
 }
 
 /// Put scripts in the execution queue
-bool Map::ScriptsStart(ScriptMapType scriptType, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams /*=SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET*/)
+bool Map::ScriptsStart(ScriptMapMapName const& scripts, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams /*=SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET*/)
 {
     MANGOS_ASSERT(source);
 
     ///- Find the script map
-    auto scriptMapMap = GetMapDataContainer().GetScriptMap(scriptType);
-    ScriptMapMap::const_iterator scriptInfoMapMapItr = scriptMapMap->second.find(id);
-    if (scriptInfoMapMapItr == scriptMapMap->second.end())
+    ScriptMapMap::const_iterator scriptInfoMapMapItr = scripts.second.find(id);
+    if (scriptInfoMapMapItr == scripts.second.end())
         return false;
 
     // prepare static data
@@ -1971,11 +1920,11 @@ bool Map::ScriptsStart(ScriptMapType scriptType, uint32 id, Object* source, Obje
     {
         for (ScriptScheduleMap::const_iterator searchItr = m_scriptSchedule.begin(); searchItr != m_scriptSchedule.end(); ++searchItr)
         {
-            if (searchItr->second.IsSameScript(scriptMapMap->first, id,
+            if (searchItr->second.IsSameScript(scripts.first, id,
                                                execParams & SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE ? sourceGuid : ObjectGuid(),
                                                execParams & SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET ? targetGuid : ObjectGuid(), ownerGuid))
             {
-                DETAIL_FILTER_LOG(LOG_FILTER_DB_SCRIPT, "DB-SCRIPTS: Process table `%s` id %u. Skip script as script already started for source %s, target %s - ScriptsStartParams %u", scriptMapMap->first, id, sourceGuid.GetString().c_str(), targetGuid.GetString().c_str(), execParams);
+                DETAIL_FILTER_LOG(LOG_FILTER_DB_SCRIPT, "DB-SCRIPTS: Process table `%s` id %u. Skip script as script already started for source %s, target %s - ScriptsStartParams %u", scripts.first, id, sourceGuid.GetString().c_str(), targetGuid.GetString().c_str(), execParams);
                 return true;
             }
         }
@@ -1989,11 +1938,11 @@ bool Map::ScriptsStart(ScriptMapType scriptType, uint32 id, Object* source, Obje
     while (scriptInfoItr != scriptMap.end())
     {
         auto const& scriptInfo = scriptInfoItr->second;
-        if (scriptInfo->delay > 0)
+        if (scriptInfo.delay > 0)
             break;
 
         // fire script with 0 delay directly
-        ScriptAction sa(scriptType, this, sourceGuid, targetGuid, ownerGuid, scriptInfo);
+        ScriptAction sa(scripts.first, this, sourceGuid, targetGuid, ownerGuid, &scriptInfo);
         if (sa.HandleScriptStep())
             return true;                    // script failed we should not continue further (command 31 or any error occured)
 
@@ -2004,8 +1953,9 @@ bool Map::ScriptsStart(ScriptMapType scriptType, uint32 id, Object* source, Obje
     for (; scriptInfoItr != scriptMap.end(); ++scriptInfoItr)
     {
         auto const& scriptInfo = scriptInfoItr->second;
-        ScriptAction sa(scriptType, this, sourceGuid, targetGuid, ownerGuid, scriptInfo);
+        ScriptAction sa(scripts.first, this, sourceGuid, targetGuid, ownerGuid, &scriptInfo);
         m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(scriptInfoItr->first), sa);
+        sScriptMgr.IncreaseScheduledScriptsCount();
     }
 
     return true;
@@ -2020,11 +1970,12 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* sou
     ObjectGuid targetGuid = target ? target->GetObjectGuid() : ObjectGuid();
     ObjectGuid ownerGuid  = source->isType(TYPEMASK_ITEM) ? ((Item*)source)->GetOwnerGuid() : ObjectGuid();
 
-    ScriptAction sa(SCRIPT_TYPE_INTERNAL, this, sourceGuid, targetGuid, ownerGuid, std::make_shared<ScriptInfo>(script));
+    ScriptAction sa("Internal Activate Command used for spell", this, sourceGuid, targetGuid, ownerGuid, &script);
 
     if (delay)
     {
         m_scriptSchedule.emplace(GetCurrentClockTime() + std::chrono::milliseconds(delay), sa);
+        sScriptMgr.IncreaseScheduledScriptsCount();
     }
     else
         sa.HandleScriptStep();
@@ -2053,14 +2004,20 @@ void Map::ScriptsProcess()
             for (ScriptScheduleMap::iterator rmItr = m_scriptSchedule.begin(); rmItr != m_scriptSchedule.end();)
             {
                 if (rmItr->second.IsSameScript(tableName, id, sourceGuid, targetGuid, ownerGuid))
+                {
                     m_scriptSchedule.erase(rmItr++);
+                    sScriptMgr.DecreaseScheduledScriptCount();
+                }
                 else
                     ++rmItr;
             }
         }
         else
+        {
             m_scriptSchedule.erase(iter);
 
+            sScriptMgr.DecreaseScheduledScriptCount();
+        }
         iter = m_scriptSchedule.begin();
     }
 }
@@ -2210,108 +2167,6 @@ void Map::SendObjectUpdates()
             update_player.first->GetSession()->SendPacket(packet);
         }
     }
-}
-
-Creature* Map::GetCreature(uint32 dbguid) const
-{
-    auto itr = m_dbGuidObjects.find(std::make_pair(HIGHGUID_UNIT, dbguid));
-    if (itr == m_dbGuidObjects.end())
-        return nullptr;
-
-    if ((*itr).second.empty())
-        return nullptr;
-
-    // prioritize alive one
-    for (auto data : (*itr).second)
-        if (static_cast<Creature*>(data)->IsAlive())
-            return static_cast<Creature*>(data);
-
-    return static_cast<Creature*>((*itr).second.front());
-}
-
-GameObject* Map::GetGameObject(uint32 dbguid) const
-{
-    auto itr = m_dbGuidObjects.find(std::make_pair(HIGHGUID_GAMEOBJECT, dbguid));
-    if (itr == m_dbGuidObjects.end())
-        return nullptr;
-
-    if ((*itr).second.empty())
-        return nullptr;
-
-    return static_cast<GameObject*>((*itr).second.front());
-}
-
-std::vector<WorldObject*> const* Map::GetWorldObjects(std::string stringId) const
-{
-    return GetWorldObjects(GetMapDataContainer().GetStringId(stringId));
-}
-
-std::vector<Creature*> const* Map::GetCreatures(std::string stringId) const
-{
-    return GetCreatures(GetMapDataContainer().GetStringId(stringId));
-}
-
-std::vector<GameObject*> const* Map::GetGameObjects(std::string stringId) const
-{
-    return GetGameObjects(GetMapDataContainer().GetStringId(stringId));
-}
-
-std::vector<WorldObject*> const* Map::GetWorldObjects(uint32 stringId) const
-{
-    auto itr = m_objectsPerStringId.find(stringId);
-    if (itr == m_objectsPerStringId.end())
-        return nullptr;
-
-    return &(itr->second.worldObjects);
-}
-
-std::vector<Creature*> const* Map::GetCreatures(uint32 stringId) const
-{
-    auto itr = m_objectsPerStringId.find(stringId);
-    if (itr == m_objectsPerStringId.end())
-        return nullptr;
-
-    return &(itr->second.creatures);
-}
-
-std::vector<GameObject*> const* Map::GetGameObjects(uint32 stringId) const
-{
-    auto itr = m_objectsPerStringId.find(stringId);
-    if (itr == m_objectsPerStringId.end())
-        return nullptr;
-
-    return &(itr->second.gameobjects);
-}
-
-void Map::AddDbGuidObject(WorldObject* obj)
-{
-    m_dbGuidObjects[std::make_pair(HighGuid(obj->GetParentHigh()), obj->GetDbGuid())].push_back(obj);
-}
-
-void Map::RemoveDbGuidObject(WorldObject* obj)
-{
-    auto& vec = m_dbGuidObjects[std::make_pair(HighGuid(obj->GetParentHigh()), obj->GetDbGuid())];
-    vec.erase(std::remove(vec.begin(), vec.end(), obj), vec.end());
-}
-
-void Map::AddStringIdObject(uint32 stringId, WorldObject* obj)
-{
-    auto& data = m_objectsPerStringId[stringId];
-    data.worldObjects.push_back(obj);
-    if (obj->IsCreature())
-        data.creatures.push_back(static_cast<Creature*>(obj));
-    else if (obj->IsGameObject())
-        data.gameobjects.push_back(static_cast<GameObject*>(obj));
-}
-
-void Map::RemoveStringIdObject(uint32 stringId, WorldObject* obj)
-{
-    auto& data = m_objectsPerStringId[stringId];
-    data.worldObjects.erase(std::remove(data.worldObjects.begin(), data.worldObjects.end(), obj), data.worldObjects.end());
-    if (obj->IsCreature())
-        data.creatures.erase(std::remove(data.creatures.begin(), data.creatures.end(), static_cast<Creature*>(obj)), data.creatures.end());
-    else if (obj->IsGameObject())
-        data.gameobjects.erase(std::remove(data.gameobjects.begin(), data.gameobjects.end(), static_cast<GameObject*>(obj)), data.gameobjects.end());
 }
 
 uint32 Map::GenerateLocalLowGuid(HighGuid guidhigh)
@@ -2579,8 +2434,7 @@ bool Map::GetRandomPointUnderWater(float& x, float& y, float& z, float radius, G
         //max_z = std::min(max_z, liquidLevel);
         x = i_x;
         y = i_y;
-        if (min_z > z)
-            z = min_z;
+        //z = min_z + rand_norm_f() * (max_z - min_z);
         return true;
     }
     return false;
@@ -2606,8 +2460,7 @@ bool Map::GetRandomPointInTheAir(float& x, float& y, float& z, float radius, boo
         float max_z = std::max(z + 0.7f * radius, min_z);
         x = i_x;
         y = i_y;
-        if (min_z > z)
-            z = min_z;
+        z = min_z + rand_norm_f() * (max_z - min_z);
         return true;
     }
     return false;
@@ -2734,18 +2587,6 @@ bool Map::IsMountAllowed() const
     return true;
 }
 
-bool Map::IsDynguidForced() const
-{
-    switch (GetId())
-    {
-        case 533: // Naxxramas
-        case 543: // Hellfire Ramparts
-            return true;
-        default: break;
-    }
-    return false;
-}
-
 void Map::OnEventHappened(uint16 event_id, bool activate, bool resume)
 {
     if (i_data)
@@ -2769,191 +2610,4 @@ void Map::AddToSpawnCount(const ObjectGuid& guid)
 void Map::RemoveFromSpawnCount(const ObjectGuid& guid)
 {
     m_spawnedCount[guid.GetEntry()].erase(guid);
-}
-
-/**
- * Function to set the zone dynamic info
- */
-void Map::SendZoneDynamicInfo(Player* player, bool zoneUpdated, bool areaUpdated) const
-{
-    uint32 zoneId, areaId;
-    player->GetZoneAndAreaId(zoneId, areaId);
-    if (!zoneUpdated)
-        zoneId = 0;
-    if (!areaUpdated)
-        areaId = 0;
-
-    auto helper = [&](ZoneDynamicInfo const& info)
-    {
-        if (uint32 music = info.musicId)
-        {
-            WorldPacket data(SMSG_PLAY_MUSIC, 4);
-            data << uint32(music);
-            player->GetSession()->SendPacket(data);
-        }
-
-        if (uint32 weather = info.weatherId)
-        {
-            WorldPacket data(SMSG_WEATHER, 4 + 4 + 1);
-            data << uint32(weather);
-            data << float(info.weatherGrade);
-            data << uint8(0);
-            player->GetSession()->SendPacket(data);
-        }
-
-        if (uint32 overrideLight = info.overrideLightId)
-        {
-            WorldPacket data(SMSG_OVERRIDE_LIGHT, 4 + 4 + 4);
-            data << uint32(m_defaultLight);
-            data << uint32(overrideLight);
-            data << uint32(info.lightFadeInTime);
-            player->GetSession()->SendPacket(data);
-        }
-    };
-
-    auto zoneItr = m_zoneDynamicInfo.find(zoneId);
-    if (zoneItr != m_zoneDynamicInfo.end())
-        helper(zoneItr->second);
-
-    // area supercedes zone
-    auto areaItr = m_areaDynamicInfo.find(areaId);
-    if (areaItr != m_areaDynamicInfo.end())
-        helper(areaItr->second);
-}
-
-/**
- * Function to set the zone music info
- *
- * @param zoneId Id of the Zone
- * @param musicId for the zone
- */
-void Map::SetZoneMusic(uint32 zoneId, uint32 areaId, uint32 musicId)
-{
-    if (zoneId)
-    {
-        if (m_zoneDynamicInfo.find(zoneId) == m_zoneDynamicInfo.end())
-            m_zoneDynamicInfo.emplace(zoneId, ZoneDynamicInfo());
-
-        m_zoneDynamicInfo[zoneId].musicId = musicId;
-    }
-
-    if (areaId)
-    {
-        if (m_areaDynamicInfo.find(areaId) == m_areaDynamicInfo.end())
-            m_areaDynamicInfo.emplace(areaId, ZoneDynamicInfo());
-
-        m_areaDynamicInfo[areaId].musicId = musicId;
-    }
-
-    Map::PlayerList const& pList = GetPlayers();
-
-    if (!pList.isEmpty())
-    {
-        WorldPacket data(SMSG_PLAY_MUSIC, 4);
-        data << uint32(musicId);
-
-        for (const auto& itr : pList)
-        {
-            uint32 curZoneId, curAreaId;
-            itr.getSource()->GetZoneAndAreaId(curZoneId, curAreaId);
-            if (curZoneId == zoneId || curAreaId == areaId)
-                itr.getSource()->SendDirectMessage(data);
-        }
-    }
-}
-
-/**
- * Function to set the zone weather info
- *
- * @param zoneId Id of the Zone
- * @param weatherId for the zone
- * @param weatherGrade for the given weatherId
- */
-void Map::SetZoneWeather(uint32 zoneId, uint32 areaId, uint32 weatherId, float weatherGrade)
-{
-    if (zoneId)
-    {
-        if (m_zoneDynamicInfo.find(zoneId) == m_zoneDynamicInfo.end())
-            m_zoneDynamicInfo.emplace(zoneId, ZoneDynamicInfo());
-
-        ZoneDynamicInfo& info = m_zoneDynamicInfo[zoneId];
-        info.weatherId = weatherId;
-        info.weatherGrade = weatherGrade;
-    }
-
-    if (areaId)
-    {
-        if (m_areaDynamicInfo.find(areaId) == m_areaDynamicInfo.end())
-            m_areaDynamicInfo.emplace(areaId, ZoneDynamicInfo());
-
-        ZoneDynamicInfo& info = m_areaDynamicInfo[areaId];
-        info.weatherId = weatherId;
-        info.weatherGrade = weatherGrade;
-    }
-
-    Map::PlayerList const& pList = GetPlayers();
-
-    if (!pList.isEmpty())
-    {
-        WorldPacket data(SMSG_WEATHER, 4 + 4 + 1);
-        data << uint32(weatherId);
-        data << float(weatherGrade);
-        data << uint8(0);
-
-        for (const auto& itr : pList)
-        {
-            uint32 curZoneId, curAreaId;
-            itr.getSource()->GetZoneAndAreaId(curZoneId, curAreaId);
-            if (curZoneId == zoneId || curAreaId == areaId)
-                itr.getSource()->SendDirectMessage(data);
-        }
-    }
-}
-
-/**
- * Function to set the zone light override info
- *
- * @param zoneId Id of the Zone
- * @param lightId to use as override
- * @param fadeInTime for the lightId override
- */
-void Map::SetZoneOverrideLight(uint32 zoneId, uint32 areaId, uint32 lightId, uint32 fadeInTime)
-{
-    if (zoneId)
-    {
-        if (m_zoneDynamicInfo.find(zoneId) == m_zoneDynamicInfo.end())
-            m_zoneDynamicInfo.emplace(zoneId, ZoneDynamicInfo());
-
-        ZoneDynamicInfo& info = m_zoneDynamicInfo[zoneId];
-        info.overrideLightId = lightId;
-        info.lightFadeInTime = fadeInTime;
-    }
-
-    if (areaId)
-    {
-        if (m_areaDynamicInfo.find(areaId) == m_areaDynamicInfo.end())
-            m_areaDynamicInfo.emplace(areaId, ZoneDynamicInfo());
-
-        ZoneDynamicInfo& info = m_areaDynamicInfo[areaId];
-        info.overrideLightId = lightId;
-        info.lightFadeInTime = fadeInTime;
-    }
-
-    Map::PlayerList const& pList = GetPlayers();
-
-    if (!pList.isEmpty())
-    {
-        WorldPacket data(SMSG_OVERRIDE_LIGHT, 4 + 4 + 4);
-        data << uint32(m_defaultLight);
-        data << uint32(lightId);
-        data << uint32(fadeInTime);
-
-        for (const auto& itr : pList)
-        {
-            uint32 curZoneId, curAreaId;
-            itr.getSource()->GetZoneAndAreaId(curZoneId, curAreaId);
-            if (curZoneId == zoneId || curAreaId == areaId)
-                itr.getSource()->SendDirectMessage(data);
-        }
-    }
 }

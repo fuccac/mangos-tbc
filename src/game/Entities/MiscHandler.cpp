@@ -23,7 +23,7 @@
 #include "Tools/Language.h"
 #include "Database/DatabaseEnv.h"
 #include "Database/DatabaseImpl.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Server/Opcodes.h"
 #include "Log.h"
 #include "Entities/Player.h"
@@ -173,7 +173,7 @@ void WorldSession::HandleWhoOpcode(WorldPacket& recv_data)
             continue;
 
         // check if target's level is in level range
-        uint32 lvl = pl->GetLevel();
+        uint32 lvl = pl->getLevel();
         if (lvl < level_min || lvl > level_max)
             continue;
 
@@ -381,7 +381,7 @@ void WorldSession::HandleSetTargetOpcode(WorldPacket& recv_data)
     if (!unit)
         return;
 
-    if (FactionTemplateEntry const* factionTemplateEntry = sFactionTemplateStore.LookupEntry(unit->GetFaction()))
+    if (FactionTemplateEntry const* factionTemplateEntry = sFactionTemplateStore.LookupEntry(unit->getFaction()))
         _player->GetReputationMgr().SetVisible(factionTemplateEntry);
 }
 
@@ -401,7 +401,7 @@ void WorldSession::HandleSetSelectionOpcode(WorldPacket& recv_data)
     if (!unit)
         return;
 
-    if (FactionTemplateEntry const* factionTemplateEntry = sFactionTemplateStore.LookupEntry(unit->GetFaction()))
+    if (FactionTemplateEntry const* factionTemplateEntry = sFactionTemplateStore.LookupEntry(unit->getFaction()))
         _player->GetReputationMgr().SetVisible(factionTemplateEntry);
 }
 
@@ -420,11 +420,6 @@ void WorldSession::HandleStandStateChangeOpcode(WorldPacket& recv_data)
         default:
             return;
     }
-
-    if (_player->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREVENT_ANIM))
-        return;
-
-    _player->InterruptSpellsAndAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ANIM_CANCELS);
 
     _player->SetStandState(uint8(animstate), true);
 }
@@ -725,9 +720,6 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         return;
     }
 
-    if (player->isDebuggingAreaTriggers())
-        ChatHandler(player->GetSession()).PSendSysMessage(LANG_DEBUG_AREATRIGGER_REACHED, Trigger_ID);
-
     if (sScriptDevAIMgr.OnAreaTrigger(player, atEntry))
         return;
 
@@ -783,12 +775,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
 
     if (at->conditionId && !sObjectMgr.IsConditionSatisfied(at->conditionId, player, player->GetMap(), nullptr, CONDITION_FROM_AREATRIGGER_TELEPORT))
     {
-        if (!at->status_failed_text.empty())
-        {
-            std::string message = at->status_failed_text;
-            sObjectMgr.GetAreaTriggerLocales(at->entry, GetSessionDbLocaleIndex(), &message);
-            SendAreaTriggerMessage(message.data());
-        }
+        /*TODO player->GetSession()->SendAreaTriggerMessage("%s", "YOU SHALL NOT PASS!");*/
         return;
     }
 
@@ -928,6 +915,85 @@ void WorldSession::HandleNextCinematicCamera(WorldPacket& /*recv_data*/)
     GetPlayer()->StartCinematic();
 }
 
+void WorldSession::HandleFeatherFallAck(WorldPacket& recv_data)
+{
+    DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_FEATHER_FALL_ACK");
+
+    // no used
+    recv_data.rpos(recv_data.wpos());                       // prevent warnings spam
+}
+
+void WorldSession::HandleMoveUnRootAck(WorldPacket& recv_data)
+{
+    DEBUG_LOG("WORLD: Received opcode CMSG_FORCE_MOVE_UNROOT_ACK");
+    // Pre-Wrath: broadcast unroot
+    ObjectGuid guid;
+    recv_data >> guid;
+    // no used
+    recv_data.rpos(recv_data.wpos());                       // prevent warnings spam
+
+    Unit* mover = _player->GetMover();
+    if (mover && mover->GetObjectGuid() == guid && mover->m_movementInfo.HasMovementFlag(MOVEFLAG_ROOT))
+    {
+        mover->m_movementInfo.RemoveMovementFlag(MOVEFLAG_ROOT);
+        mover->SendMoveRoot(false, true);
+    }
+    /*
+        ObjectGuid guid;
+        recv_data >> guid;
+
+        // now can skip not our packet
+        if(_player->GetGUID() != guid)
+        {
+            recv_data.rpos(recv_data.wpos());               // prevent warnings spam
+            return;
+        }
+
+        DEBUG_LOG("WORLD: Received opcode CMSG_FORCE_MOVE_UNROOT_ACK");
+
+        recv_data.read_skip<uint32>();                      // unk
+
+        MovementInfo movementInfo;
+        ReadMovementInfo(recv_data, &movementInfo);
+    */
+}
+
+void WorldSession::HandleMoveRootAck(WorldPacket& recv_data)
+{
+    DEBUG_LOG("WORLD: Received opcode CMSG_FORCE_MOVE_ROOT_ACK");
+    // Pre-Wrath: broadcast root
+    ObjectGuid guid;
+    recv_data >> guid;
+    // no used
+    recv_data.rpos(recv_data.wpos());                       // prevent warnings spam
+
+    Unit* mover = _player->GetMover();
+    if (mover && mover->GetObjectGuid() == guid && !mover->m_movementInfo.HasMovementFlag(MOVEFLAG_ROOT))
+    {
+        mover->m_movementInfo.RemoveMovementFlag(movementFlagsMask);
+        mover->m_movementInfo.AddMovementFlag(MOVEFLAG_ROOT);
+        mover->SendMoveRoot(true, true);
+    }
+    /*
+        ObjectGuid guid;
+        recv_data >> guid;
+
+        // now can skip not our packet
+        if(_player->GetObjectGuid() != guid)
+        {
+            recv_data.rpos(recv_data.wpos());               // prevent warnings spam
+            return;
+        }
+
+        DEBUG_LOG("WORLD: Received opcode CMSG_FORCE_MOVE_ROOT_ACK");
+
+        recv_data.read_skip<uint32>();                      // unk
+
+        MovementInfo movementInfo;
+        ReadMovementInfo(recv_data, &movementInfo);
+    */
+}
+
 void WorldSession::HandleSetActionBarTogglesOpcode(WorldPacket& recv_data)
 {
     uint8 ActionBar;
@@ -941,7 +1007,17 @@ void WorldSession::HandleSetActionBarTogglesOpcode(WorldPacket& recv_data)
         return;
     }
 
-    GetPlayer()->SetByteValue(PLAYER_FIELD_BYTES, PLAYER_FIELD_BYTES_OFFSET_ACTION_BAR_TOGGLES, ActionBar);
+    GetPlayer()->SetByteValue(PLAYER_FIELD_BYTES, 2, ActionBar);
+}
+
+void WorldSession::HandleWardenDataOpcode(WorldPacket& recv_data)
+{
+    recv_data.read_skip<uint8>();
+    /*
+        uint8 tmp;
+        recv_data >> tmp;
+        DEBUG_LOG("Received opcode CMSG_WARDEN_DATA, not resolve.uint8 = %u", tmp);
+    */
 }
 
 void WorldSession::HandlePlayedTime(WorldPacket& /*recv_data*/)
@@ -1329,7 +1405,7 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data)
     }
 
     // Exception to set mode to normal for low-level players
-    if (_player->GetLevel() < LEVELREQUIREMENT_HEROIC && mode > REGULAR_DIFFICULTY)
+    if (_player->getLevel() < LEVELREQUIREMENT_HEROIC && mode > REGULAR_DIFFICULTY)
         return;
 
     if (Group* pGroup = _player->GetGroup())
@@ -1368,6 +1444,22 @@ void WorldSession::HandleCancelMountAuraOpcode(WorldPacket& /*recv_data*/)
 
     _player->RemoveSpellsCausingAura(SPELL_AURA_MOUNTED);
     _player->Unmount();
+}
+
+void WorldSession::HandleMoveSetCanFlyAckOpcode(WorldPacket& recv_data)
+{
+    // fly mode on/off
+    DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_SET_CAN_FLY_ACK");
+    // recv_data.hexlike();
+
+    MovementInfo movementInfo;
+
+    recv_data >> Unused<uint64>();                          // guid
+    recv_data >> Unused<uint32>();                          // unk
+    recv_data >> movementInfo;
+    recv_data >> Unused<uint32>();                          // unk2
+
+    _player->m_movementInfo.SetMovementFlags(movementInfo.GetMovementFlags());
 }
 
 void WorldSession::HandleRequestPetInfoOpcode(WorldPacket& /*recv_data */)

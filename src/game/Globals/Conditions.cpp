@@ -48,7 +48,6 @@ char const* conditionSourceToStr[] =
     "trainer's spell check",         // CONDITION_FROM_TRAINER
     "areatrigger teleport check",    // CONDITION_FROM_AREATRIGGER_TELEPORT
     "quest template",                // CONDITION_FROM_QUEST
-    "world state"                    // CONDITION_FROM_WORLDSTATE
 };
 
 // Stores what params need to be provided to each condition type.
@@ -63,16 +62,16 @@ uint8 const ConditionTargetsInternal[] =
     CONDITION_REQ_TARGET_PLAYER,      //  2
     CONDITION_REQ_TARGET_PLAYER,      //  3
     CONDITION_REQ_ANY_WORLDOBJECT,    //  4
-    CONDITION_REQ_TARGET_PLAYER_OR_CORPSE, //  5
+    CONDITION_REQ_TARGET_PLAYER,      //  5
     CONDITION_REQ_TARGET_PLAYER,      //  6
     CONDITION_REQ_TARGET_PLAYER,      //  7
     CONDITION_REQ_TARGET_PLAYER,      //  8
     CONDITION_REQ_TARGET_PLAYER,      //  9
     CONDITION_REQ_TARGET_PLAYER,      //  10
-    CONDITION_REQ_TARGET_PLAYER_OR_CORPSE, //  11
+    CONDITION_REQ_NONE,               //  11
     CONDITION_REQ_NONE,               //  12
     CONDITION_REQ_ANY_WORLDOBJECT,    //  13
-    CONDITION_REQ_TARGET_UNIT_OR_CORPSE, //  14
+    CONDITION_REQ_TARGET_UNIT,        //  14
     CONDITION_REQ_TARGET_UNIT,        //  15
     CONDITION_REQ_NONE,               //  16
     CONDITION_REQ_TARGET_PLAYER,      //  17
@@ -100,7 +99,6 @@ uint8 const ConditionTargetsInternal[] =
     CONDITION_REQ_MAP_OR_WORLDOBJECT, //  39
     CONDITION_REQ_NONE,               //  40
     CONDITION_REQ_NONE,               //  41
-    CONDITION_REQ_NONE                //  42
 };
 
 // Starts from 4th element so that -3 will return first element.
@@ -128,21 +126,6 @@ bool ConditionEntry::Meets(WorldObject const* target, Map const* map, WorldObjec
         result = !result;
 
     return result;
-}
-
-bool ConditionEntry::CheckOp(ConditionOperation op, int32 value, int32 operand)
-{
-    switch (op)
-    {
-        case ConditionOperation::EQUAL_TO: return value == operand;
-        case ConditionOperation::NOT_EQUAL_TO: return value != operand;
-        case ConditionOperation::LESS_THAN: return value < operand;
-        case ConditionOperation::LESS_THAN_OR_EQUAL_TO: return value <= operand;
-        case ConditionOperation::GREATER_THAN: return value > operand;
-        case ConditionOperation::GREATER_THAN_OR_EQUAL_TO: return value >= operand;
-        default: break;
-    }
-    return false;
 }
 
 // Actual evaluation of the condition done here.
@@ -208,10 +191,7 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
         {
             if (conditionSourceType == CONDITION_FROM_REFERING_LOOT && sWorld.getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_AUCTION))
                 return true;
-            if (target->IsPlayer())
-                return uint32(static_cast<Player const*>(target)->GetTeam()) == m_value1;
-            else
-                return uint32(static_cast<Corpse const*>(target)->GetTeam()) == m_value1;
+            return uint32(static_cast<Player const*>(target)->GetTeam()) == m_value1;
         }
         case CONDITION_SKILL:
         {
@@ -230,12 +210,10 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
         {
             Unit::SpellAuraHolderMap const& auras = static_cast<Player const*>(target)->GetSpellAuraHolderMap();
             for (const auto& aura : auras)
-                if ((aura.second->GetSpellProto()->HasAttribute(SPELL_ATTR_ALLOW_WHILE_MOUNTED) || aura.second->GetSpellProto()->HasAttribute(SPELL_ATTR_IS_ABILITY)) && aura.second->GetSpellProto()->SpellVisual == 3580)
+                if ((aura.second->GetSpellProto()->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_MOUNTED) || aura.second->GetSpellProto()->HasAttribute(SPELL_ATTR_ABILITY)) && aura.second->GetSpellProto()->SpellVisual == 3580)
                     return true;
             return false;
         }
-        case CONDITION_PVP_RANK:
-            return false;
         case CONDITION_ACTIVE_GAME_EVENT:
         {
             return sGameEventMgr.IsActiveEvent(m_value1);
@@ -260,9 +238,9 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
             Unit const* unit = static_cast<Unit const*>(target);
             switch (m_value2)
             {
-                case 0: return unit->GetLevel() == m_value1;
-                case 1: return unit->GetLevel() >= m_value1;
-                case 2: return unit->GetLevel() <= m_value1;
+                case 0: return unit->getLevel() == m_value1;
+                case 1: return unit->getLevel() >= m_value1;
+                case 2: return unit->getLevel() <= m_value1;
             }
             return false;
         }
@@ -486,11 +464,6 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
         {
             return sWorldState.IsConditionFulfilled(m_value1, m_value2);
         }
-        case CONDITION_WORLDSTATE:
-        {
-            int32 value = map->GetVariableManager().GetVariable(m_value1);
-            return CheckOp(ConditionOperation(m_value2), value, m_value3);
-        }
         default:
             break;
     }
@@ -516,20 +489,12 @@ bool ConditionEntry::CheckParamRequirements(WorldObject const* target, Map const
             if (target && target->IsUnit())
                 return true;
             return false;
-        case CONDITION_REQ_TARGET_UNIT_OR_CORPSE:
-            if (target && (target->IsUnit() || target->IsCorpse()))
-                return true;
-            return false;
         case CONDITION_REQ_TARGET_CREATURE:
             if (target && target->IsCreature())
                 return true;
             return false;
         case CONDITION_REQ_TARGET_PLAYER:
             if (target && target->IsPlayer())
-                return true;
-            return false;
-        case CONDITION_REQ_TARGET_PLAYER_OR_CORPSE:
-            if (target && (target->IsPlayer() || target->IsCorpse()))
                 return true;
             return false;
         case CONDITION_REQ_SOURCE_WORLDOBJECT:
@@ -948,20 +913,6 @@ bool ConditionEntry::IsValid() const
         case CONDITION_ACTIVE_HOLIDAY:
         case CONDITION_PVP_SCRIPT:
         case CONDITION_WORLD_SCRIPT:
-            break;
-        case CONDITION_WORLDSTATE:
-            if (m_value2 > uint32(ConditionOperation::MAX))
-            {
-                sLog.outErrorDb("Worldstate condition (entry %u, type %u) has invalid sign %u. Skipping.", m_entry, m_condition, m_value2);
-                return false;
-            }
-
-            // only allow named to avoid not knowing what they are for
-            if (!sObjectMgr.HasWorldStateName(m_value1))
-            {
-                sLog.outErrorDb("Worldstate condition (entry %u, type %u) has has no worldstate name assigned for worldstate %u. Skipping.", m_entry, m_condition, m_value1);
-                return false;
-            }
             break;
         default:
             sLog.outErrorDb("Condition entry %u has bad type of %d, skipped ", m_entry, m_condition);

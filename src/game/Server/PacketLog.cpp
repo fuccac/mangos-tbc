@@ -16,8 +16,8 @@
  */
 
 #include "PacketLog.h"
-#include "Util/Timer.h"
-#include "Server/WorldPacket.h"
+#include "Timer.h"
+#include "WorldPacket.h"
 #include "Config/Config.h"
 #include "Globals/SharedDefines.h"
 
@@ -104,17 +104,6 @@ void PacketLog::Initialize()
         if (CanLogPacket())
             fwrite(&header, sizeof(header), 1, _file);
     }
-}
-
-void PacketLog::Reinitialize()
-{
-    std::lock_guard<std::mutex> lock(_logPacketLock);
-    if (CanLogPacket())
-    {
-        fclose(_file);
-        _file = nullptr;
-    }
-    Initialize();
 }
 
 void PacketLog::LogPacket(WorldPacket const& packet, Direction direction, boost::asio::ip::address const& addr, uint16 port)

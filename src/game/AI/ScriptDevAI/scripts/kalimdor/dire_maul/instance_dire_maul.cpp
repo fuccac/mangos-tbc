@@ -36,7 +36,7 @@ void instance_dire_maul::Initialize()
     memset(&m_auiEncounter, 0, sizeof(m_auiEncounter));
 }
 
-void instance_dire_maul::Update(uint32 /*uiDiff*/)
+void instance_dire_maul::Update(uint32 uiDiff)
 {
     if (GetData(TYPE_DREADSTEED) == IN_PROGRESS)
     {
@@ -96,10 +96,7 @@ void instance_dire_maul::OnCreatureCreate(Creature* pCreature)
             return;
 
         // North
-        case NPC_CHO_RUSH_THE_OBSERVER:
-            if (m_auiEncounter[TYPE_KING_GORDOK] == DONE)
-                pCreature->SetStandState(UNIT_STAND_STATE_SIT);
-            break;
+        case NPC_CHORUSH:
         case NPC_KING_GORDOK:
         case NPC_CAPTAIN_KROMCRUSH:
         case NPC_GUARD_SLIPKIK:
@@ -325,7 +322,7 @@ void instance_dire_maul::SetData(uint32 uiType, uint32 uiData)
                     }
                 }
 
-                if (Creature* pOgre = GetSingleCreatureFromStorage(NPC_CHO_RUSH_THE_OBSERVER))
+                if (Creature* pOgre = GetSingleCreatureFromStorage(NPC_CHORUSH))
                 {
                     // Chorush evades and yells on king death (if alive)
                     if (pOgre->IsAlive())
@@ -448,7 +445,7 @@ void instance_dire_maul::OnCreatureDeath(Creature* pCreature)
         case NPC_CAPTAIN_KROMCRUSH:
             SetData(TYPE_KROMCRUSH, DONE);
             break;
-        case NPC_CHO_RUSH_THE_OBSERVER:
+        case NPC_CHORUSH:
             SetData(TYPE_CHORUSH, DONE);
             break;
         case NPC_STOMPER_KREEG:

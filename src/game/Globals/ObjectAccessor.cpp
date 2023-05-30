@@ -127,16 +127,7 @@ void ObjectAccessor::SaveAllPlayers() const
     HashMapHolder<Player>::ReadGuard g(HashMapHolder<Player>::GetLock());
     HashMapHolder<Player>::MapType& m = sObjectAccessor.GetPlayers();
     for (auto& itr : m)
-    {
-        if (itr.second->IsInWorld())
-            itr.second->GetMap()->GetMessager().AddMessage([guid = itr.second->GetObjectGuid()](Map* map)
-            {
-                if (Player* player = map->GetPlayer(guid))
-                    player->SaveToDB();
-            });
-        else
-            itr.second->SaveToDB();
-    }
+        itr.second->SaveToDB();
 }
 
 void ObjectAccessor::ExecuteOnAllPlayers(std::function<void(Player*)> executor)
@@ -275,7 +266,7 @@ ObjectAccessor::ConvertCorpseForPlayer(ObjectGuid player_guid, bool insignia)
         bones->Relocate(corpse->GetPositionX(), corpse->GetPositionY(), corpse->GetPositionZ(), corpse->GetOrientation());
 
         bones->SetUInt32Value(CORPSE_FIELD_FLAGS, CORPSE_FLAG_UNK2 | CORPSE_FLAG_BONES);
-        bones->SetOwnerGuid(player_guid);
+        bones->SetOwnerGuid(ObjectGuid());
 
         for (int i = 0; i < EQUIPMENT_SLOT_END; ++i)
         {

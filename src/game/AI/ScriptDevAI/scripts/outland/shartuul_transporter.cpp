@@ -45,17 +45,12 @@ struct npc_doomguard_punisherAI : public CombatAI
 {
     npc_doomguard_punisherAI(Creature* creature) : CombatAI(creature, PUNISHER_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
     {
+        SetDeathPrevention(true);
         m_creature->GetCombatManager().SetLeashingDisable(true);
         AddTimerlessCombatAction(PUNISHER_POSSESSION_TRANSFER, false);
         AddCombatAction(PUNISHER_FEL_FLAMES, 30000u);
         AddCustomAction(PUNISHER_ATTACK_DELAY, true, [&]() { HandleAttackDelay(); });
         DoCastSpellIfCan(nullptr, SPELL_SHADOWFORM, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
-    }
-
-    void Reset() override
-    {
-        CombatAI::Reset();
-        SetDeathPrevention(true);
     }
 
     ScriptedInstance* m_instance;
@@ -74,7 +69,7 @@ struct npc_doomguard_punisherAI : public CombatAI
     {
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         m_creature->SetFactionTemporary(SHARTUUL_FACTION_HOSTILE, TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_RESTORE_REACH_HOME);
         m_creature->RemoveAurasDueToSpell(SPELL_SHADOWFORM);
         if (Creature* demon = m_creature->GetMap()->GetCreature(m_demonGuid))
@@ -83,7 +78,7 @@ struct npc_doomguard_punisherAI : public CombatAI
             m_instance->SetData(TYPE_SHARTUUL, EVENT_FAIL);
     }
 
-    void JustPreventedDeath(Unit* /*killer*/) override
+    void JustPreventedDeath(Unit* killer) override
     {
         SetActionReadyStatus(PUNISHER_POSSESSION_TRANSFER, true);
     }
@@ -122,17 +117,12 @@ struct npc_shivan_assassinAI : public CombatAI
 {
     npc_shivan_assassinAI(Creature* creature) : CombatAI(creature, SHIVAN_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
     {
+        SetDeathPrevention(true);
         m_creature->GetCombatManager().SetLeashingDisable(true);
         AddCombatAction(SHIVAN_POSSESSION_TRANSFER, true);
         AddCustomAction(SHIVAN_ATTACK_DELAY, true, [&]() { HandleAttackDelay(); });
         AddCustomAction(SHIVAN_OOC_ANIM, 1000u, [&]() { HandleOocAnim(); });
         DoCastSpellIfCan(nullptr, SPELL_SHADOWFORM, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
-    }
-
-    void Reset() override
-    {
-        CombatAI::Reset();
-        SetDeathPrevention(true);
     }
 
     ScriptedInstance* m_instance;
@@ -153,7 +143,7 @@ struct npc_shivan_assassinAI : public CombatAI
     {
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         m_creature->SetFactionTemporary(SHARTUUL_FACTION_HOSTILE, TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_RESTORE_REACH_HOME);
         m_creature->RemoveAurasDueToSpell(SPELL_SHADOWFORM);
         if (Creature* demon = m_creature->GetMap()->GetCreature(m_demonGuid))
@@ -182,7 +172,7 @@ struct npc_shivan_assassinAI : public CombatAI
         ResetTimer(SHIVAN_OOC_ANIM, 8000);
     }
 
-    void JustPreventedDeath(Unit* /*killer*/) override
+    void JustPreventedDeath(Unit* killer) override
     {
         SetActionReadyStatus(SHIVAN_POSSESSION_TRANSFER, true);
     }
@@ -221,18 +211,13 @@ struct npc_eye_of_shartuulAI : public CombatAI
 {
     npc_eye_of_shartuulAI(Creature* creature) : CombatAI(creature, EYE_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
     {
+        SetDeathPrevention(true);
         m_creature->GetCombatManager().SetLeashingDisable(true);
         AddCombatAction(EYE_DARK_GLARE, 60000u);
         AddCombatAction(EYE_DISRUPTION_RAY, 10000u);
         AddCombatAction(EYE_TONGUE_LASH, 5000u);
         AddCombatAction(EYE_FEL_FIREBALL, 15000u);
         AddCustomAction(EYE_ATTACK_DELAY, true, [&]() { HandleAttackDelay(); });
-    }
-
-    void Reset() override
-    {
-        CombatAI::Reset();
-        SetDeathPrevention(true);
     }
 
     ScriptedInstance* m_instance;
@@ -252,7 +237,7 @@ struct npc_eye_of_shartuulAI : public CombatAI
     {
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         m_creature->SetFactionTemporary(SHARTUUL_FACTION_HOSTILE, TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_RESTORE_REACH_HOME);
         if (Creature* demon = m_creature->GetMap()->GetCreature(m_demonGuid))
             AttackStart(demon);
@@ -260,7 +245,7 @@ struct npc_eye_of_shartuulAI : public CombatAI
             m_instance->SetData(TYPE_SHARTUUL, EVENT_FAIL);
     }
 
-    void JustPreventedDeath(Unit* /*killer*/) override
+    void JustPreventedDeath(Unit* killer) override
     {
         if (m_instance)
             m_instance->SetData(TYPE_SHARTUUL, EVENT_EYE_OF_SHARTUUL_DEATH);
@@ -319,16 +304,11 @@ struct npc_dreadmawAI : public CombatAI
 {
     npc_dreadmawAI(Creature* creature) : CombatAI(creature, DREADMAW_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
     {
+        SetDeathPrevention(true);
         m_creature->GetCombatManager().SetLeashingDisable(true);
         AddCombatAction(DREADMAW_RAMPAGING_CHARGE, 60000u);
         AddCombatAction(DREADMAW_GROWTH, 30000u);
         AddCustomAction(DREADMAW_ATTACK_DELAY, true, [&]() { HandleAttackDelay(); });
-    }
-
-    void Reset() override
-    {
-        CombatAI::Reset();
-        SetDeathPrevention(true);
     }
 
     ScriptedInstance* m_instance;
@@ -348,7 +328,7 @@ struct npc_dreadmawAI : public CombatAI
     {
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         m_creature->SetFactionTemporary(SHARTUUL_FACTION_HOSTILE, TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_RESTORE_REACH_HOME);
         if (Creature* demon = m_creature->GetMap()->GetCreature(m_demonGuid))
             AttackStart(demon);
@@ -356,7 +336,7 @@ struct npc_dreadmawAI : public CombatAI
             m_instance->SetData(TYPE_SHARTUUL, EVENT_FAIL);
     }
 
-    void JustPreventedDeath(Unit* /*killer*/) override
+    void JustPreventedDeath(Unit* killer) override
     {
         if (m_instance)
             m_instance->SetData(TYPE_SHARTUUL, EVENT_DREADMAW_DEATH);
@@ -412,9 +392,9 @@ enum ShartuulActions
     SHARTUUL_HANDLE_FIGHT_START,
 };
 
-struct npc_shartuulAI : public CombatAI
+struct npc_shartuulAI : public RangedCombatAI
 {
-    npc_shartuulAI(Creature* creature) : CombatAI(creature, SHARTUUL_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData())), m_fightSequenceStage(0)
+    npc_shartuulAI(Creature* creature) : RangedCombatAI(creature, SHARTUUL_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData())), m_fightSequenceStage(0)
     {
         m_creature->GetCombatManager().SetLeashingDisable(true);
         // AddCombatAction(SHARTUUL_TELEPORT, 60000u);
@@ -423,14 +403,9 @@ struct npc_shartuulAI : public CombatAI
         AddCombatAction(SHARTUUL_SHADOW_RESONANCE, 15000u);
         AddCombatAction(SHARTUUL_SHADOW_BOLT, 3000u);
         AddCustomAction(SHARTUUL_HANDLE_FIGHT_START, true, [&]() { HandleFightSequence(); });
+        SetDeathPrevention(true);
         DoCastSpellIfCan(nullptr, SPELL_SHADOWFORM, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
         SetRangedMode(true, 30.f, TYPE_FULL_CASTER);
-    }
-
-    void Reset() override
-    {
-        CombatAI::Reset();
-        SetDeathPrevention(true);
     }
 
     ScriptedInstance* m_instance;
@@ -463,7 +438,7 @@ struct npc_shartuulAI : public CombatAI
             case 2:
                 m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
                 m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
                 m_creature->SetFactionTemporary(SHARTUUL_FACTION_HOSTILE, TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_RESTORE_REACH_HOME);
                 m_creature->RemoveAurasDueToSpell(SPELL_SHADOWFORM);
                 Unit* spawner = m_creature->GetSpawner();
@@ -527,7 +502,7 @@ struct PossessionTransfer : public AuraScript
         if (!apply)
         {
             Unit* caster = aura->GetTarget();
-            Unit* target = dynamic_cast<Unit*>(caster->GetChannelObject());
+            Unit* target = caster->GetChannelObject();
             if (!target)
                 return;
             Unit* charmer = target->GetCharmer();
@@ -605,7 +580,7 @@ struct MadnessRift : public SpellScript
         target->CastSpell(nullptr, SPELL_LEGION_RING_EYE_STALK_TRANSFORM, TRIGGERED_OLD_TRIGGERED);
         target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
         target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-        target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
         static_cast<Creature*>(target)->SetFactionTemporary(SHARTUUL_FACTION_HOSTILE, TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_RESTORE_REACH_HOME);
     }
 };
@@ -852,7 +827,7 @@ struct ShivanShapeshiftForm : public AuraScript
                 case SPELL_ASPECT_OF_THE_ICE:       spellSet = 2; break;
                 case SPELL_ASPECT_OF_THE_SHADOW:    spellSet = 0; break;
             }
-            demon->SetSpellList(spellSet);
+            demon->UpdateSpellSet(spellSet);
             charmInfo->InitPossessCreateSpells();
             if (Player* player = dynamic_cast<Player*>(demon->GetCharmer()))
                 player->PossessSpellInitialize();
@@ -870,7 +845,7 @@ struct BuildPortableFelCannon : public AuraScript
             target->CastSpell(nullptr, SPELL_LEGION_RING_FEL_CANNON_TRANSFORM, TRIGGERED_OLD_TRIGGERED);
             target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
             target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-            target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+            target->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
             static_cast<Creature*>(target)->SetFactionTemporary(SHARTUUL_FACTION_HOSTILE, TEMPFACTION_RESTORE_RESPAWN | TEMPFACTION_RESTORE_REACH_HOME);
         }
     }
@@ -963,10 +938,10 @@ void AddSC_shartuul_transporter()
     pNewScript->GetAI = &GetNewAIInstance<StunField>;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<PossessionTransfer>("spell_possession_transfer");
+    RegisterAuraScript<PossessionTransfer>("spell_possession_transfer");
     RegisterSpellScript<TouchOfMadness>("spell_touch_of_madness");
     RegisterSpellScript<MadnessRift>("spell_madness_rift");
-    RegisterSpellScript<EredarPreGateBeam>("spell_eredar_pre_gate_beam");
+    RegisterAuraScript<EredarPreGateBeam>("spell_eredar_pre_gate_beam");
     RegisterSpellScript<ThrowAxe>("spell_throw_axe");
     RegisterSpellScript<SuperJump>("spell_super_jump");
     RegisterSpellScript<CleansingFlame>("spell_cleansing_flame");
@@ -976,10 +951,10 @@ void AddSC_shartuul_transporter()
     RegisterSpellScript<AbsorbLife>("spell_absorb_life");
     RegisterSpellScript<ShartuulDiveBomb>("spell_shartuul_dive_bomb");
     RegisterSpellScript<ChaosStrike>("spell_chaos_strike");
-    RegisterSpellScript<FlyingAttackAura>("spell_flying_attack_aura");
+    RegisterAuraScript<FlyingAttackAura>("spell_flying_attack_aura");
     RegisterSpellScript<ShartuulFireballBarrage>("spell_fireball_barrage");
     RegisterSpellScript<ChaosStrikeTransform>("spell_chaos_strike_transform");
-    RegisterSpellScript<ShivanShapeshiftForm>("spell_shivan_shapeshift_form");
-    RegisterSpellScript<BuildPortableFelCannon>("spell_build_portable_fel_cannon");
+    RegisterAuraScript<ShivanShapeshiftForm>("spell_shivan_shapeshift_form");
+    RegisterAuraScript<BuildPortableFelCannon>("spell_build_portable_fel_cannon");
     RegisterSpellScript<StunRopeAttunement>("spell_stun_rope_attunement");
 }

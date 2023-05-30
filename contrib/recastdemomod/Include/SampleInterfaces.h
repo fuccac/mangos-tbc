@@ -24,7 +24,6 @@
 #include "RecastDump.h"
 #include "PerfTimer.h"
 #include <stdio.h>
-#include <string>
 
 // These are example implementations of various interfaces used in Recast and Detour.
 
@@ -41,19 +40,9 @@ class BuildContext : public rcContext
 	char m_textPool[TEXT_POOL_SIZE];
 	int m_textPoolSize;
 
-	const char* m_dataDir;
-    std::string m_mapsFolder;
-    std::string m_mMapsFolder;
-    std::string m_vMapsFolder;
-
 public:
-	BuildContext(const char* dataDir);
+	BuildContext();
 	virtual ~BuildContext();
-
-	const char* getMapFolder() { return m_mapsFolder.c_str(); }
-	const char* getMMapFolder() { return m_mMapsFolder.c_str(); }
-	const char* getVMapFolder() { return m_vMapsFolder.c_str(); }
-	const char* getDataDir() { return m_dataDir; }
 
 	/// Dumps the log to stdout.
 	void dumpLog(const char* format, ...);

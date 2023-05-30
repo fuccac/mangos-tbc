@@ -20,19 +20,24 @@ enum
     GO_GONG                     = 148917,
 };
 
-static const Position aSpawnLocations[MAX_COUNT_POS] =
+struct Locations
+{
+    float m_fX, m_fY, m_fZ, m_fO;
+};
+
+static const Locations aSpawnLocations[MAX_COUNT_POS] =
 {
     {2484.83f, 811.11f, 43.40f, 1.67f},                 // Right corridor
     {2546.03f, 902.77f, 47.16f, 5.04f},                 // Left corridor
 };
 
-struct RFDSummonInformation
+struct SummonInformation
 {
     uint32 m_uiNpcEntry;
     uint8 m_uiNPCperWave;
 };
 
-static const RFDSummonInformation aWaveSummonInformation[] =
+static const SummonInformation aWaveSummonInformation[] =
 {
     {NPC_TOMB_FIEND,  8},
     {NPC_TOMB_REAVER, 4},

@@ -20,7 +20,7 @@
 #define QUERYRESULT_H
 
 #include "Common.h"
-#include "Util/Errors.h"
+#include "Errors.h"
 #include "Field.h"
 
 class QueryResult

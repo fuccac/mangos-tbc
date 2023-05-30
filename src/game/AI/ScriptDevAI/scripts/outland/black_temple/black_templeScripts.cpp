@@ -249,7 +249,7 @@ struct SpellAbsorption : public AuraScript
 {
     bool OnCheckProc(Aura* /*aura*/, ProcExecutionData& data) const override
     {
-		return data.spell && !data.spell->m_spellInfo->HasAttribute(SPELL_ATTR_IS_ABILITY);
+		return data.spell && !data.spell->m_spellInfo->HasAttribute(SPELL_ATTR_ABILITY);
     }
 
     void OnPeriodicTrigger(Aura* aura, PeriodicTriggerData& data) const override
@@ -293,6 +293,11 @@ struct AssistBT : public SpellScript
         Unit* unitTarget = spell->GetUnitTarget();
         if (!unitTarget || !unitTarget->IsInCombat())
             return;
+
+        if (!unitTarget->IsInWorld())
+        {
+            return;
+        }
 
         unitTarget->CastSpell(spell->GetCaster(), 40892, TRIGGERED_OLD_TRIGGERED);
     }
@@ -341,8 +346,8 @@ void AddSC_black_temple()
     pNewScript->GetAI = &GetNewAIInstance<npc_bonechewer_combatant>;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<SpellAbsorption>("spell_spell_absorption");
-    RegisterSpellScript<HarpoonersMark>("spell_harpooners_mark");
+    RegisterAuraScript<SpellAbsorption>("spell_spell_absorption");
+    RegisterAuraScript<HarpoonersMark>("spell_harpooners_mark");
     RegisterSpellScript<AssistBT>("spell_assist_bt");
     RegisterSpellScript<FixateBT>("spell_fixate_bt");
     RegisterSpellScript<StormBlink>("spell_storm_blink");

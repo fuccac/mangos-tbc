@@ -29,7 +29,7 @@
 
 namespace MMAP
 {
-    TerrainBuilder::TerrainBuilder(bool skipLiquid, const char* workdir /*= "./"*/) : m_skipLiquid(skipLiquid), m_workdir(workdir) { }
+    TerrainBuilder::TerrainBuilder(bool skipLiquid) : m_skipLiquid(skipLiquid) { }
     TerrainBuilder::~TerrainBuilder() { }
 
     /**************************************************************************/
@@ -81,7 +81,7 @@ namespace MMAP
     bool TerrainBuilder::loadMap(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData, Spot portion)
     {
         char mapFileName[255];
-        sprintf(mapFileName, "%s/maps/%03u%02u%02u.map", m_workdir, mapID, tileY, tileX);
+        sprintf(mapFileName, "maps/%03u%02u%02u.map", mapID, tileY, tileX);
 
         FILE* mapFile = fopen(mapFileName, "rb");
         if (!mapFile)
@@ -342,11 +342,11 @@ namespace MMAP
                         useLiquid = false;
                     }
                     else if ((liquidType & (MAP_LIQUID_TYPE_WATER | MAP_LIQUID_TYPE_OCEAN)) != 0)
-                        liquidType = NAV_AREA_WATER;
+                        liquidType = NAV_WATER;
                     else if (liquidType & MAP_LIQUID_TYPE_MAGMA)
-                        liquidType = NAV_AREA_MAGMA_SLIME;
+                        liquidType = NAV_MAGMA;
                     else if (liquidType & MAP_LIQUID_TYPE_SLIME)
-                        liquidType = NAV_AREA_MAGMA_SLIME;
+                        liquidType = NAV_SLIME;
                     else
                         useLiquid = false;
                 }
@@ -419,7 +419,11 @@ namespace MMAP
                             minTLevel = h;
                     }
 
-                    // liquid under the terrain?
+                    // terrain under the liquid?
+                    if (minLLevel > maxTLevel)
+                        useTerrain = false;
+
+                    //liquid under the terrain?
                     if (minTLevel > maxLLevel)
                         useLiquid = false;
                 }
@@ -558,10 +562,8 @@ namespace MMAP
     /**************************************************************************/
     bool TerrainBuilder::loadVMap(uint32 mapID, uint32 tileX, uint32 tileY, MeshData& meshData)
     {
-        char vmaps_dir[1024];
         IVMapManager* vmapManager = new VMapManager2();
-        sprintf(vmaps_dir, "%s/vmaps", m_workdir);
-        VMAPLoadResult result = vmapManager->loadMap(vmaps_dir, mapID, tileX, tileY);
+        VMAPLoadResult result = vmapManager->loadMap("vmaps", mapID, tileX, tileY);
         bool retval = false;
 
         do
@@ -643,11 +645,13 @@ namespace MMAP
                         {
                             case 0:
                             case 1:
-                                type = NAV_AREA_WATER;
+                                type = NAV_WATER;
                                 break;
                             case 2:
+                                type = NAV_MAGMA;
+                                break;
                             case 3:
-                                type = NAV_MAGMA_SLIME;
+                                type = NAV_SLIME;
                                 break;
                         }
 

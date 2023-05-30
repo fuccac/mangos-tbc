@@ -22,9 +22,9 @@
 enum
 {
     SAY_ENTER       = -1534049,
-    SAY_KILL1       = 18237,
-    SAY_KILL2       = 18238,
-    SAY_KILL3       = 18239,
+    SAY_KILL1       = -1534050,
+    SAY_KILL2       = -1534051,
+    SAY_KILL3       = -1534052,
     SAY_DEATH       = -1534053,
     SAY_SWARM1      = -1534054,
     SAY_SWARM2      = -1534055,
@@ -73,7 +73,6 @@ struct boss_anetheronAI : public CombatAI
                 infernal->SetInCombatWithZone();
             }
         });
-        AddOnKillText(SAY_KILL1, SAY_KILL2, SAY_KILL3);
         Reset();
     }
 
@@ -90,6 +89,13 @@ struct boss_anetheronAI : public CombatAI
                 infernal->ForcedDespawn();
 
         m_infernals.clear();
+    }
+
+    void EnterEvadeMode() override
+    {
+        ScriptedAI::EnterEvadeMode();
+
+        Reset();
     }
 
     uint32 GetSubsequentActionTimer(const uint32 action) const
@@ -126,6 +132,21 @@ struct boss_anetheronAI : public CombatAI
                 infernal->Suicide();
 
         m_infernals.clear();
+    }
+
+    void KilledUnit(Unit* victim) override
+    {
+        if (victim->GetTypeId() != TYPEID_PLAYER)
+            return;
+
+        uint32 textId;
+        switch (urand(0, 2))
+        {
+            case 0: textId = SAY_KILL1; break;
+            case 1: textId = SAY_KILL2; break;
+            case 2: textId = SAY_KILL3; break;
+        }
+        DoScriptText(textId, m_creature);
     }
 
     void JustSummoned(Creature* summoned) override

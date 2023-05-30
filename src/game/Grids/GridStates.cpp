@@ -17,6 +17,7 @@
  */
 
 #include "Grids/GridStates.h"
+#include "Grids/ObjectGridLoader.h"
 #include "Log.h"
 
 void
@@ -33,6 +34,8 @@ ActiveState::Update(Map& m, NGridType& grid, GridInfo& info, const uint32& x, co
     {
         if (grid.ActiveObjectsInGrid() == 0 && !m.ActiveObjectsNearGrid(x, y))
         {
+            ObjectGridStoper stoper(grid);
+            stoper.StopN();
             grid.SetGridState(GRID_STATE_IDLE);
         }
         else

@@ -29,7 +29,7 @@ EndScriptData */
 enum
 {
     SAY_AGGRO                   = -1531008,
-    SAY_SLAY                    = 11443,
+    SAY_SLAY                    = -1531009,
     SAY_DEATH                   = -1531010,
 
     EMOTE_FRENZY                = -1000002,
@@ -60,7 +60,6 @@ struct boss_sarturaAI : public CombatAI
         AddCombatAction(SARTURA_WHIRLWIND, 10000, 20000);
         AddCombatAction(SARTURA_SUNDERING_CLEAVE, 2000, 5000);
         AddCombatAction(SARTURA_BERSERK, uint32(10 * MINUTE * IN_MILLISECONDS));
-        AddOnKillText(SAY_SLAY);
         Reset();
     }
 
@@ -72,6 +71,11 @@ struct boss_sarturaAI : public CombatAI
 
         if (m_instance)
             m_instance->SetData(TYPE_SARTURA, IN_PROGRESS);
+    }
+
+    void KilledUnit(Unit* /*victim*/) override
+    {
+        DoScriptText(SAY_SLAY, m_creature);
     }
 
     void JustDied(Unit* /*killer*/) override

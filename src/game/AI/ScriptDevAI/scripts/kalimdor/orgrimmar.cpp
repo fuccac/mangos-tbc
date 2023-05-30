@@ -27,47 +27,106 @@ EndContentData */
 
 #include "AI/ScriptDevAI/include/sc_common.h"
 
+/*######
+## npc_shenthul
+######*/
+
 enum
 {
-    GO_HEAD_OF_NEFARIAN_OG = 179881,
-    GO_HEAD_OF_ONYXIA_OG = 179556,
-
-    GOSSIP_HEAD_OG = 6024,
+    QUEST_SHATTERED_SALUTE  = 2460
 };
 
-bool GossipHello_npc_overlord_runthalak(Player* player, Creature* creature)
+struct npc_shenthulAI : public ScriptedAI
 {
-    uint32 gossipId = creature->GetCreatureInfo()->GossipMenuId;
-    if (GameObject* go = GetClosestGameObjectWithEntry(creature, GO_HEAD_OF_NEFARIAN_OG, 100.f))
-        if (go->IsSpawned())
-            gossipId = GOSSIP_HEAD_OG;
+    npc_shenthulAI(Creature* pCreature) : ScriptedAI(pCreature) { Reset(); }
 
-    player->PrepareGossipMenu(creature, gossipId);
-    player->SendPreparedGossip(creature);
-    return true;
+    uint32 m_uiSaluteTimer;
+    uint32 m_uiResetTimer;
+
+    ObjectGuid m_playerGuid;
+
+    void Reset() override
+    {
+        m_uiSaluteTimer = 0;
+        m_uiResetTimer = 0;
+
+        m_playerGuid.Clear();
+    }
+
+    void ReceiveEmote(Player* pPlayer, uint32 uiTextEmote) override
+    {
+        if (m_uiResetTimer && uiTextEmote == TEXTEMOTE_SALUTE && pPlayer->GetQuestStatus(QUEST_SHATTERED_SALUTE) == QUEST_STATUS_INCOMPLETE)
+        {
+            pPlayer->AreaExploredOrEventHappens(QUEST_SHATTERED_SALUTE);
+            EnterEvadeMode();
+        }
+    }
+
+    void DoStartQuestEvent(Player* pPlayer)
+    {
+        m_playerGuid = pPlayer->GetObjectGuid();
+        m_uiSaluteTimer = 6000;
+    }
+
+    void UpdateAI(const uint32 uiDiff) override
+    {
+        if (m_uiResetTimer)
+        {
+            if (m_uiResetTimer <= uiDiff)
+            {
+                if (Player* pPlayer = m_creature->GetMap()->GetPlayer(m_playerGuid))
+                {
+                    if (pPlayer->GetTypeId() == TYPEID_PLAYER && pPlayer->GetQuestStatus(QUEST_SHATTERED_SALUTE) == QUEST_STATUS_INCOMPLETE)
+                        pPlayer->FailQuest(QUEST_SHATTERED_SALUTE);
+                }
+
+                m_uiResetTimer = 0;
+                EnterEvadeMode();
+            }
+            else
+                m_uiResetTimer -= uiDiff;
+        }
+
+        if (m_uiSaluteTimer)
+        {
+            if (m_uiSaluteTimer <= uiDiff)
+            {
+                m_creature->HandleEmote(EMOTE_ONESHOT_SALUTE);
+                m_uiResetTimer = 60000;
+                m_uiSaluteTimer = 0;
+            }
+            else
+                m_uiSaluteTimer -= uiDiff;
+        }
+
+        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
+            return;
+
+        DoMeleeAttackIfReady();
+    }
+};
+
+UnitAI* GetAI_npc_shenthul(Creature* pCreature)
+{
+    return new npc_shenthulAI(pCreature);
 }
 
-bool GossipHello_npc_high_overlord_saurfang(Player* player, Creature* creature)
+bool QuestAccept_npc_shenthul(Player* pPlayer, Creature* pCreature, const Quest* pQuest)
 {
-    uint32 gossipId = creature->GetCreatureInfo()->GossipMenuId;
-    if (GameObject* go = GetClosestGameObjectWithEntry(creature, GO_HEAD_OF_ONYXIA_OG, 100.f))
-        if (go->IsSpawned())
-            gossipId = GOSSIP_HEAD_OG;
+    if (pQuest->GetQuestId() == QUEST_SHATTERED_SALUTE)
+    {
+        if (npc_shenthulAI* pShenAI = dynamic_cast<npc_shenthulAI*>(pCreature->AI()))
+            pShenAI->DoStartQuestEvent(pPlayer);
+    }
 
-    player->PrepareGossipMenu(creature, gossipId);
-    player->SendPreparedGossip(creature);
     return true;
 }
 
 void AddSC_orgrimmar()
 {
     Script* pNewScript = new Script;
-    pNewScript->Name = "npc_overlord_runthalak";
-    pNewScript->pGossipHello = &GossipHello_npc_overlord_runthalak;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
-    pNewScript->Name = "npc_high_overlord_saurfang";
-    pNewScript->pGossipHello = &GossipHello_npc_high_overlord_saurfang;
+    pNewScript->Name = "npc_shenthul";
+    pNewScript->GetAI = &GetAI_npc_shenthul;
+    pNewScript->pQuestAcceptNPC =  &QuestAccept_npc_shenthul;
     pNewScript->RegisterSelf();
 }

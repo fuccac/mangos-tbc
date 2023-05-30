@@ -20,7 +20,7 @@
 #define _PLAYERBOTCLASSAI_H
 
 #include "Common.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "PlayerbotAI.h"
 #include "../../Entities/Player.h"
 #include "../../Entities/Unit.h"

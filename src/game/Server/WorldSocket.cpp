@@ -19,21 +19,20 @@
 #include "WorldSocket.h"
 #include "Common.h"
 
-#include "Util/Util.h"
+#include "Util.h"
 #include "World/World.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Globals/SharedDefines.h"
-#include "Util/ByteBuffer.h"
+#include "ByteBuffer.h"
 #include "Addons/AddonHandler.h"
 #include "Server/Opcodes.h"
 #include "Server/PacketLog.h"
 #include "Database/DatabaseEnv.h"
-#include "Auth/CryptoHash.h"
+#include "Auth/Sha1.h"
 #include "Server/WorldSession.h"
 #include "Log.h"
 #include "Server/DBCStores.h"
-#include "Util/CommonDefines.h"
-#include "Anticheat/Anticheat.hpp"
+#include "CommonDefines.h"
 
 #include <chrono>
 #include <functional>
@@ -72,20 +71,13 @@ std::vector<uint32> InitOpcodeCooldowns()
 
 std::vector<uint32> WorldSocket::m_packetCooldowns = InitOpcodeCooldowns();
 
-std::deque<uint32> WorldSocket::GetOutOpcodeHistory()
+std::deque<uint32> WorldSocket::GetOpcodeHistory()
 {
-    std::lock_guard<std::mutex> guard(m_worldSocketMutex);
-    return m_opcodeHistoryOut;
-}
-
-std::deque<uint32> WorldSocket::GetIncOpcodeHistory()
-{
-    std::lock_guard<std::mutex> guard(m_worldSocketMutex);
-    return m_opcodeHistoryInc;
+    return m_opcodeHistory;
 }
 
 WorldSocket::WorldSocket(boost::asio::io_service& service, std::function<void (Socket*)> closeHandler) : Socket(service, std::move(closeHandler)), m_lastPingTime(std::chrono::system_clock::time_point::min()), m_overSpeedPings(0), m_existingHeader(),
-    m_useExistingHeader(false), m_session(nullptr), m_seed(urand()), m_loggingPackets(false)
+    m_useExistingHeader(false), m_session(nullptr), m_seed(urand())
 {
 }
 
@@ -94,7 +86,7 @@ void WorldSocket::SendPacket(const WorldPacket& pct, bool immediate)
     if (IsClosed())
         return;
 
-    if (sPacketLog->CanLogPacket() && IsLoggingPackets())
+    if (sPacketLog->CanLogPacket())
         sPacketLog->LogPacket(pct, SERVER_TO_CLIENT, GetRemoteIpAddress(), GetRemotePort());
 
     // Dump outgoing packet.
@@ -121,9 +113,9 @@ void WorldSocket::SendPacket(const WorldPacket& pct, bool immediate)
     if (immediate)
         ForceFlushOut();
 
-    m_opcodeHistoryOut.push_front(uint32(pct.GetOpcode()));
-    if (m_opcodeHistoryOut.size() > 50)
-        m_opcodeHistoryOut.resize(30);
+    m_opcodeHistory.push_front(uint32(pct.GetOpcode()));
+    if (m_opcodeHistory.size() > 50)
+        m_opcodeHistory.resize(20);
 }
 
 bool WorldSocket::Open()
@@ -137,11 +129,11 @@ bool WorldSocket::Open()
 
     BigNumber seed1;
     seed1.SetRand(16 * 8);
-    packet.append(seed1.AsByteArray(16).data(), 16);               // new encryption seeds
+    packet.append(seed1.AsByteArray(16), 16);               // new encryption seeds
 
     BigNumber seed2;
     seed2.SetRand(16 * 8);
-    packet.append(seed2.AsByteArray(16).data(), 16);               // new encryption seeds
+    packet.append(seed2.AsByteArray(16), 16);               // new encryption seeds
 
     SendPacket(packet);
 
@@ -215,7 +207,7 @@ bool WorldSocket::ProcessIncomingData()
         ReadSkip(validBytesRemaining);
     }
 
-    if (sPacketLog->CanLogPacket() && IsLoggingPackets())
+    if (sPacketLog->CanLogPacket())
         sPacketLog->LogPacket(*pct, CLIENT_TO_SERVER, GetRemoteIpAddress(), GetRemotePort());
 
     sLog.outWorldPacketDump(GetRemoteEndpoint().c_str(), pct->GetOpcode(), pct->GetOpcodeName(), *pct, true);
@@ -253,10 +245,6 @@ bool WorldSocket::ProcessIncomingData()
                 pct->SetReceivedTime(std::chrono::steady_clock::now());
             default:
             {
-                m_opcodeHistoryInc.push_front(uint32(pct->GetOpcode()));
-                if (m_opcodeHistoryInc.size() > 50)
-                    m_opcodeHistoryInc.resize(30);
-
                 if (!m_session)
                 {
                     sLog.outError("WorldSocket::ProcessIncomingData: Client not authed opcode = %u", uint32(opcode));
@@ -297,16 +285,15 @@ bool WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     uint8 digest[20];
     uint32 clientSeed;
     uint32 ClientBuild;
-    uint32 unk2;
     LocaleConstant locale;
-    std::string account, os;
+    std::string account;
     Sha1Hash sha1;
     BigNumber v, s, g, N, K;
     WorldPacket packet, SendAddonPacked;
 
     // Read the content of the packet
     recvPacket >> ClientBuild;
-    recvPacket >> unk2;
+    recvPacket.read_skip<uint32>();
     recvPacket >> account;
     recvPacket >> clientSeed;
     recvPacket.read(digest, 20);
@@ -344,10 +331,7 @@ bool WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
                              "s, "                       //6
                              "expansion, "               //7
                              "mutetime, "                //8
-                             "locale, "                  //9
-                             "os, "                      //10
-                             "flags, "                   //11
-                             "platform "                 //12
+                             "locale "                   //9
                              "FROM account a "
                              "WHERE username = '%s'",
                              safe_account.c_str());
@@ -418,11 +402,6 @@ bool WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     locale = GetLocaleByName(fields[9].GetString());
 
-    os = fields[10].GetString();
-
-    uint32 accountFlags = fields[11].GetUInt32();
-	std::string platform = fields[12].GetString();
-
     delete result;
 
     // Re-check account ban (same check as in realmd)
@@ -488,17 +467,6 @@ bool WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
               account.c_str(),
               address.c_str());
 
-    ClientOSType clientOS;
-    if (os == "Win")
-        clientOS = CLIENT_OS_WIN;
-    else if (os == "OSX")
-        clientOS = CLIENT_OS_MAC;
-    else
-    {
-        sLog.outError("WorldSocket::HandleAuthSession: Unrecognized OS '%s' for account '%s' from %s", os.c_str(), account.c_str(), address.c_str());
-        return false;
-    }
-
     // Update the last_ip in the database
     // No SQL injection, username escaped.
     static SqlStatementID updAccount;
@@ -508,19 +476,11 @@ bool WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     m_crypt.Init(&K);
 
+    // Create and send the Addon packet
+    if (sAddOnHandler.BuildAddonPacket(recvPacket, SendAddonPacked))
+        SendPacket(SendAddonPacked);
+
     m_session = sWorld.FindSession(id);
-
-    ClientPlatformType clientPlatform;
-    if (platform == "x86")
-        clientPlatform = CLIENT_PLATFORM_X86;
-    else if (platform == "PPC" && clientOS == CLIENT_OS_MAC)
-        clientPlatform = CLIENT_PLATFORM_PPC;
-    else
-    {
-        sLog.outError("WorldSocket::HandleAuthSession: Unrecognized platform '%s' for account '%s' from %s", platform.c_str(), account.c_str(), address.c_str());
-        return false;
-    }
-
     if (m_session)
     {
         // Session exist so player is reconnecting
@@ -540,71 +500,15 @@ bool WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
             if (IsClosed() || counter > 20)
                 return false;
         }
-
-        m_session->SetGameBuild(ClientBuild);
-        m_session->SetOS(clientOS);
-        m_session->SetPlatform(clientPlatform);
-
-        std::unique_ptr<SessionAnticheatInterface> anticheat = sAnticheatLib->NewSession(m_session, K);
-
-        // when false, the client sent invalid addon data.  kick!
-        WorldPacket addonPacket; // yes its copypasted atm cos of reconnect
-        if (!anticheat->ReadAddonInfo(&recvPacket, addonPacket))
-        {
-            sLog.outBasic("WorldSocket::HandleAuthSession: Account %s (id %u) IP %s sent bad addon info.  Kicking.",
-                account.c_str(), id, address.c_str());
-            return false;
-        }
-        else
-            SendPacket(addonPacket);
-
-        m_session->SetDelayedAnticheat(std::move(anticheat));
-        m_session->GetMessager().AddMessage([](WorldSession* session)
-        {
-            session->AssignAnticheat();
-        });
     }
     else
     {
-        uint32 otherRaf = 0;
-        bool isRecruiter = false;
-        {
-            std::unique_ptr<QueryResult> result(LoginDatabase.PQuery("SELECT referrer, referred FROM account_raf WHERE referrer=%u OR referred=%u", id, id));
-            if (result)
-            {
-                Field* fields = result->Fetch();
-                uint32 recruiter = fields[0].GetUInt32();
-                if (id == recruiter)
-                {
-                    isRecruiter = true;
-                    otherRaf = fields[1].GetUInt32();
-                }
-                else
-                    otherRaf = recruiter;
-            }
-        }
-
         // new session
-        if (!(m_session = new WorldSession(id, this, AccountTypes(security), expansion, mutetime, locale, account, accountFlags, otherRaf, isRecruiter)))
+        if (!(m_session = new WorldSession(id, this, AccountTypes(security), expansion, mutetime, locale)))
             return false;
 
         m_session->LoadGlobalAccountData();
         m_session->LoadTutorialsData();
-        m_session->SetGameBuild(ClientBuild);
-        m_session->SetOS(clientOS);
-        m_session->SetPlatform(clientPlatform);
-        m_session->InitializeAnticheat(K);
-
-        // when false, the client sent invalid addon data.  kick!
-        WorldPacket addonPacket;
-        if (!m_session->GetAnticheat()->ReadAddonInfo(&recvPacket, addonPacket))
-        {
-            sLog.outBasic("WorldSocket::HandleAuthSession: Account %s (id %u) IP %s sent bad addon info.  Kicking.",
-                account.c_str(), id, address.c_str());
-            return false;
-        }
-        else
-            SendPacket(addonPacket);
 
         sWorld.AddSession(m_session);
     }

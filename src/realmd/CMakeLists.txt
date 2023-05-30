@@ -41,11 +41,6 @@ target_link_libraries(${EXECUTABLE_NAME}
 )
 
 if(WIN32)
-  if(MSVC)
-    target_link_libraries(${EXECUTABLE_NAME}
-      dbghelp
-    )
-  endif()
   if(MINGW)
     target_link_libraries(${EXECUTABLE_NAME}
       wsock32

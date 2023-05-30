@@ -287,7 +287,9 @@ void instance_karazhan::SetData(uint32 uiType, uint32 uiData)
         case TYPE_CHESS:
             if (uiData == DONE)
             {
-                static_cast<DungeonMap*>(instance)->PermBindAllPlayers();
+                Player* creditedPlayer = GetPlayerInMap(true, false);
+                if (instance->IsRaidOrHeroicDungeon() && creditedPlayer)
+                    static_cast<DungeonMap*>(instance)->PermBindAllPlayers(creditedPlayer);
                 DoFinishChessEvent();
             }
             else if (uiData == FAIL)
@@ -646,9 +648,6 @@ void instance_karazhan::DoFinishChessEvent()
         DoUseDoorOrButton(GO_GAMESMANS_HALL_EXIT_DOOR);
         DoRespawnGameObject(GO_DUST_COVERED_CHEST, DAY);
         DoToggleGameObjectFlags(GO_DUST_COVERED_CHEST, GO_FLAG_NO_INTERACT, false);
-        if (GameObject* chest = GetSingleGameObjectFromStorage(GO_DUST_COVERED_CHEST))
-            if (Player* player = GetPlayerInMap(false, false))
-                chest->GenerateLootFor(player);
     }
 
     // cast game end spells

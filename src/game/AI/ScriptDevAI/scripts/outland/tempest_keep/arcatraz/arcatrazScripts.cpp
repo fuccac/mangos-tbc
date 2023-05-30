@@ -174,6 +174,11 @@ struct npc_millhouse_manastormAI : public ScriptedAI, private DialogueHelper
         }
     }
 
+    void HandleMovementOnAttackStart(Unit* victim) const override
+    {
+        m_creature->GetMotionMaster()->MoveChase(victim, m_attackDistance, m_attackAngle, false);
+    }
+
     void UpdateAI(const uint32 uiDiff) override
     {
         DialogueUpdate(uiDiff);

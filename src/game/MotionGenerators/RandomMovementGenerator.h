@@ -22,8 +22,6 @@
 #include "MotionGenerators/MovementGenerator.h"
 #include "Entities/ObjectGuid.h"
 
-class PathFinder;
-
 class AbstractRandomMovementGenerator : public MovementGenerator
 {
     public:
@@ -42,6 +40,7 @@ class AbstractRandomMovementGenerator : public MovementGenerator
         bool Update(Unit& owner, const uint32& diff) override;
 
     protected:
+        virtual bool _getLocation(Unit& owner, float& x, float& y, float& z);
         virtual int32 _setLocation(Unit& owner);
 
         float i_x, i_y, i_z;
@@ -49,8 +48,6 @@ class AbstractRandomMovementGenerator : public MovementGenerator
         float i_verticalZ;
         float i_pathLength;
         bool i_walk;
-
-        std::unique_ptr<PathFinder> m_pathFinder;
         ShortTimeTracker i_nextMoveTimer;
         uint32 i_nextMoveCount, i_nextMoveCountMax;
         uint32 i_nextMoveDelayMin, i_nextMoveDelayMax;
@@ -101,8 +98,10 @@ class FleeingMovementGenerator : public AbstractRandomMovementGenerator
     public:
         explicit FleeingMovementGenerator(Unit const& source);
 
-        virtual int32 _setLocation(Unit& owner) override;
         MovementGeneratorType GetMovementGeneratorType() const override { return FLEEING_MOTION_TYPE; }
+
+    protected:
+        bool _getLocation(Unit& owner, float& x, float& y, float& z) override;
 };
 
 class PanicMovementGenerator : public FleeingMovementGenerator

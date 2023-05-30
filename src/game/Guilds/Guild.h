@@ -400,7 +400,6 @@ class Guild
         void   LoadGuildEventLogFromDB();
         void   DisplayGuildEventLog(WorldSession* session);
         void   LogGuildEvent(uint8 EventType, ObjectGuid playerGuid1, ObjectGuid playerGuid2 = ObjectGuid(), uint8 newRank = 0);
-        ObjectGuid GetGuildInviter(ObjectGuid playerGuid) const;
 
         // ** Guild bank **
         // Content & item deposit/withdraw
@@ -417,7 +416,7 @@ class Guild
         void   SetGuildBankTabText(uint8 TabId, std::string text);
         void   SendGuildBankTabText(WorldSession* session, uint8 TabId);
         void   SetGuildBankTabInfo(uint8 TabId, std::string Name, std::string Icon);
-        uint8  GetPurchasedTabs() const { return m_TabList.size(); }
+        uint8  GetPurchasedTabs() const { return m_TabListMap.size(); }
         uint32 GetBankRights(uint32 rankId, uint8 TabId) const;
         bool   IsMemberHaveRights(uint32 LowGuid, uint8 TabId, uint32 rights) const;
         // Load
@@ -466,7 +465,8 @@ class Guild
 
         MemberList members;
 
-        std::vector<GuildBankTab> m_TabList;
+        typedef std::vector<GuildBankTab*> TabListMap;
+        TabListMap m_TabListMap;
 
         /** These are actually ordered lists. The first element is the oldest entry.*/
         typedef std::list<GuildEventLogEntry> GuildEventLog;
@@ -493,7 +493,7 @@ class Guild
         void   DisplayGuildBankContentUpdate(uint8 TabId, GuildItemPosCountVec const& slots);
 
         // internal common parts for CanStore/StoreItem functions
-        void AppendDisplayGuildBankSlot(WorldPacket& data, GuildBankTab const& tab, int32 slot) const;
+        void AppendDisplayGuildBankSlot(WorldPacket& data, GuildBankTab const* tab, int32 slot) const;
         InventoryResult _CanStoreItem_InSpecificSlot(uint8 tab, uint8 slot, GuildItemPosCountVec& dest, uint32& count, bool swap, Item* pSrcItem) const;
         InventoryResult _CanStoreItem_InTab(uint8 tab, GuildItemPosCountVec& dest, uint32& count, bool merge, Item* pSrcItem, uint8 skip_slot) const;
         Item* _StoreItem(uint8 tab, uint8 slot, Item* pItem, uint32 count, bool clone);

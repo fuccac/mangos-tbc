@@ -119,7 +119,7 @@ void LoadHelper(CellGuidSet const& guid_set, CellPair& cell, GridRefManager<T>& 
     for (uint32 guid : guid_set)
     {
         T* obj;
-        if constexpr (std::is_same_v<T, GameObject>)
+        if (std::is_same<T, GameObject>::value) // TODO: When c++17 is added change to constexpr
         {
             GameObjectData const* data = sObjectMgr.GetGOData(guid);
             MANGOS_ASSERT(data);
@@ -128,7 +128,7 @@ void LoadHelper(CellGuidSet const& guid_set, CellPair& cell, GridRefManager<T>& 
         else
             obj = new T;
         // sLog.outString("DEBUG: LoadHelper from table: %s for (guid: %u) Loading",table,guid);
-        if (!obj->LoadFromDB(guid, map, guid, 0))
+        if (!obj->LoadFromDB(guid, map, guid))
         {
             delete obj;
             continue;
@@ -141,8 +141,10 @@ void LoadHelper(CellGuidSet const& guid_set, CellPair& cell, GridRefManager<T>& 
             addUnitState(obj, cell);
         }
 
-        // if this assert is hit we have a problem somewhere because LoadFromDb should already add to map due to AI
-        MANGOS_ASSERT(obj->IsInWorld());
+        obj->SetMap(map);
+        obj->AddToWorld();
+        if (obj->isActiveObject())
+            map->AddToActive(obj);
 
         obj->GetViewPoint().Event_AddedToWorld(&grid);
 

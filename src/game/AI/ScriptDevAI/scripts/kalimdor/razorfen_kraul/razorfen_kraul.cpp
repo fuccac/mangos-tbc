@@ -252,18 +252,6 @@ bool EffectDummyCreature_npc_snufflenose_gopher(Unit* /*pCaster*/, uint32 uiSpel
     return false;
 }
 
-struct LeftForDead : public SpellScript // s.8555
-{
-    void OnEffectExecute(Spell* spell, SpellEffectIndex /*effIdx*/) const override
-    {
-        Unit* target = spell->GetUnitTarget();
-        if (!target)
-            return;
-
-        target->CastSpell(nullptr, 8359, TRIGGERED_OLD_TRIGGERED);
-    }
-};
-
 void AddSC_razorfen_kraul()
 {
     Script* pNewScript = new Script;
@@ -277,6 +265,4 @@ void AddSC_razorfen_kraul()
     pNewScript->GetAI = &GetAI_npc_snufflenose_gopher;
     pNewScript->pEffectDummyNPC = &EffectDummyCreature_npc_snufflenose_gopher;
     pNewScript->RegisterSelf();
-
-    RegisterSpellScript<LeftForDead>("spell_left_for_dead");
 }

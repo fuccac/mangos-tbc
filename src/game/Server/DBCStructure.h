@@ -22,7 +22,7 @@
 #include "Server/DBCEnums.h"
 #include "MotionGenerators/Path.h"
 #include "Platform/Define.h"
-#include "Spells/SpellDefines.h"
+#include "Globals/SharedDefines.h"
 
 #include <map>
 #include <set>
@@ -313,7 +313,7 @@ struct CreatureModelDataEntry
     //float Unk8
     //uint32 Unk9
     //uint32 Unk10
-    float CollisionWidth;
+    //float CollisionWidth;
     float CollisionHeight;
     float MountHeight;                                       // Used in calculation of unit collision data when mounted
     //float Unks[7] wotlk has 11
@@ -343,10 +343,9 @@ struct DungeonEncounterEntry
     uint32 Difficulty;                                      // 2        m_difficulty
     uint32 encounterData;                                   // 3        m_orderIndex
     uint32 encounterIndex;                                  // 4        m_Bit
-    uint32 CompleteWorldStateID;                            // 5        m_CompleteWorldStateID - from 9.0.5
-    char*  encounterName[16];                               // 6-21     m_name_lang
-    uint32 nameLangFlags;                                   // 22       m_name_lang_flags
-    uint32 spellIconID;                                     // 23       m_spellIconID
+    char*  encounterName[16];                               // 5-20     m_name_lang
+    uint32 nameLangFlags;                                   // 21       m_name_lang_flags
+    uint32 spellIconID;                                     // 22       m_spellIconID
 };
 
 struct DurabilityCostsEntry
@@ -473,14 +472,7 @@ struct FactionTemplateEntry
                 return false;
         return enemyGroupMask == 0 && friendGroupMask == 0;
     }
-    bool IsContestedGuardFaction() const { return (factionFlags & FACTION_TEMPLATE_FLAG_ATTACK_PVP_ACTIVE_PLAYERS) != 0; }
-};
-
-struct GameObjectArtKitEntry
-{
-    uint32 ID;                                              // 0
-    //char* TextureVariation[3]                             // 1-3 m_textureVariations[3]
-    //char* AttachModel[4]                                  // 4-8 m_attachModels[4]
+    bool IsContestedGuardFaction() const { return (factionFlags & FACTION_TEMPLATE_FLAG_CONTESTED_GUARD) != 0; }
 };
 
 struct GameObjectDisplayInfoEntry
@@ -666,22 +658,6 @@ struct ItemSetEntry
     uint32    items_to_triggerspell[8];                     // 43-50    m_setThreshold
     uint32    required_skill_id;                            // 51       m_requiredSkill
     uint32    required_skill_value;                         // 52       m_requiredSkillRank
-};
-
-struct LightEntry
-{
-    uint32 id;                                              // 0
-    uint32 mapId;                                           // 1
-    float x;                                                // 2
-    float y;                                                // 3
-    float z;                                                // 4
-    //float falloffStart;                                   // 5
-    //float falloffEnd;                                     // 6
-    //uint32 skyAndFog;                                     // 7
-    //uint32 waterSettings;                                 // 8
-    //uint32 sunsetParams;                                  // 9
-    //uint32 otherParams;                                   // 10
-    //uint32 deathParams;                                   // 11
 };
 
 struct LiquidTypeEntry
@@ -1022,17 +998,6 @@ struct SpellEntry
         // custom
         bool HasAttribute(SpellAttributesServerside attribute) const { return (AttributesServerside & attribute) != 0; }
 
-        uint32 GetAllEffectsMechanicMask() const
-        {
-            uint32 mask = 0;
-            if (Mechanic)
-                mask |= 1 << Mechanic;
-            for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
-                if (Effect[i] && EffectMechanic[i])
-                    mask |= 1 << EffectMechanic[i];
-            return mask;
-        }
-
     private:
         // prevent creating custom entries (copy data from original in fact)
         SpellEntry(SpellEntry const&);                      // DON'T must have implementation
@@ -1111,7 +1076,7 @@ struct SpellItemEnchantmentEntry
     char*       description[16];                            // 13-28    m_name_lang[16]
     // uint32      descriptionFlags;                        // 29 string flags
     uint32      aura_id;                                    // 30       m_itemVisual
-    uint32      flags;                                      // 31       m_flags
+    uint32      slot;                                       // 31       m_flags
     uint32      GemID;                                      // 32       m_src_itemID
     uint32      EnchantmentCondition;                       // 33       m_condition_id
 };
@@ -1272,7 +1237,7 @@ struct WMOAreaTableEntry
     // uint32 field8;                                       // 8        m_IntroSound
     uint32 Flags;                                           // 9        m_flags (used for indoor/outdoor determination)
     uint32 areaId;                                          // 10       m_AreaTableID (AreaTable.dbc)
-    char *Name[16];                                         //          m_AreaName_lang
+    // char *Name[16];                                      //          m_AreaName_lang
     // uint32 nameFlags;
 };
 

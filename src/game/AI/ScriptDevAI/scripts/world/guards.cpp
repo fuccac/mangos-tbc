@@ -67,7 +67,7 @@ struct guard_hallows_end_helperAI : public guardAI
     void Reset() override
     {
         isSpawnedForHallowsEnd = false;
-        GameEventCreatureData const* eventData = sGameEventMgr.GetCreatureUpdateDataForActiveEvent(m_creature->GetDbGuid());
+        GameEventCreatureData const* eventData = sGameEventMgr.GetCreatureUpdateDataForActiveEvent(m_creature->GetGUIDLow());
         if (eventData)
         {
             relightingFires = false;
@@ -184,7 +184,7 @@ struct guard_hallows_end_helperAI : public guardAI
 
 bool GossipHello_guard_hallows_end_helper(Player* player, Creature* creature)
 {
-    GameEventCreatureData const* eventData = sGameEventMgr.GetCreatureUpdateDataForActiveEvent(creature->GetDbGuid());
+    GameEventCreatureData const* eventData = sGameEventMgr.GetCreatureUpdateDataForActiveEvent(creature->GetGUIDLow());
     if (eventData)
     {
         uint32 textId = 0;

@@ -25,9 +25,9 @@ enum
     SAY_FROST_NOVA2 = -1534042,
     SAY_DND1        = -1534043,
     SAY_DND2        = -1534044,
-    SAY_KILL1       = 18226,
-    SAY_KILL2       = 18227,
-    SAY_KILL3       = 18228,
+    SAY_KILL1       = -1534045,
+    SAY_KILL2       = -1534046,
+    SAY_KILL3       = -1534047,
     SAY_DEATH       = -1534048,
     SAY_ENRAGE      = -1000004, // Generic Berserker Rage emote
 
@@ -58,7 +58,6 @@ struct boss_rage_winterchillAI : public CombatAI
         AddCombatAction(WINTERCHILL_ACTION_FROST_NOVA, GetInitialActionTimer(WINTERCHILL_ACTION_FROST_NOVA));
         AddCombatAction(WINTERCHILL_ACTION_DEATH_AND_DECAY, GetInitialActionTimer(WINTERCHILL_ACTION_DEATH_AND_DECAY));
         AddCombatAction(WINTERCHILL_ACTION_ENRAGE, GetInitialActionTimer(WINTERCHILL_ACTION_ENRAGE));
-        AddOnKillText(SAY_KILL1, SAY_KILL2, SAY_KILL3);
         Reset();
     }
 
@@ -101,6 +100,21 @@ struct boss_rage_winterchillAI : public CombatAI
         DoScriptText(SAY_DEATH, m_creature);
         if (m_instance)
             m_instance->SetData(TYPE_WINTERCHILL, DONE);
+    }
+
+    void KilledUnit(Unit* victim) override
+    {
+        if (victim->GetTypeId() != TYPEID_PLAYER)
+            return;
+
+        uint32 textId;
+        switch (urand(0, 2))
+        {
+            case 0: textId = SAY_KILL1; break;
+            case 1: textId = SAY_KILL2; break;
+            case 2: textId = SAY_KILL3; break;
+        }
+        DoScriptText(textId, m_creature);
     }
 
     void ExecuteAction(uint32 action) override
@@ -173,5 +187,5 @@ void AddSC_boss_rage_winterchill()
     pNewScript->GetAI = &GetNewAIInstance<boss_rage_winterchillAI>;
     pNewScript->RegisterSelf();
 
-    RegisterSpellScript<DeathAndDecay>("spell_winterchill_death_and_decay");
+    RegisterAuraScript<DeathAndDecay>("spell_winterchill_death_and_decay");
 }

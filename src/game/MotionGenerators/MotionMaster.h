@@ -22,8 +22,6 @@
 #include "Common.h"
 #include "Globals/SharedDefines.h"
 #include "MotionGenerators/WaypointManager.h"
-#include "Entities/ObjectGuid.h"
-#include "Maps/SpawnGroupDefines.h"
 
 #include <stack>
 #include <vector>
@@ -45,6 +43,9 @@ namespace G3D
 #define PET_FOLLOW_DIST  1.0f
 #define PET_FOLLOW_ANGLE (M_PI_F / 2.0f)
 
+// define minimum falling distance required to launch MoveFall generator
+static float MOVE_FALL_MIN_FALL_DISTANCE = 0.5f;
+
 // values 0 ... MAX_DB_MOTION_TYPE-1 used in DB
 enum MovementGeneratorType
 {
@@ -52,30 +53,26 @@ enum MovementGeneratorType
     RANDOM_MOTION_TYPE              = 1,                    // RandomMovementGenerator.h
     WAYPOINT_MOTION_TYPE            = 2,                    // WaypointMovementGenerator.h
     PATH_MOTION_TYPE                = 3,                    // PathMovementGenerator.h
-    LINEAR_WP_MOTION_TYPE           = 4,                    // WaypointMovementGenerator.h
 
-    MAX_DB_MOTION_TYPE              = 5,                    // *** this and below motion types can't be set in DB.
+    MAX_DB_MOTION_TYPE              = 4,                    // *** this and below motion types can't be set in DB.
 
-    DISTRACT_MOTION_TYPE            = 5,                    // IdleMovementGenerator.h
-    STAY_MOTION_TYPE                = 6,                    // PointMovementGenerator.h
-    FOLLOW_MOTION_TYPE              = 7,                    // TargetedMovementGenerator.h
-    CHASE_MOTION_TYPE               = 8,                    // TargetedMovementGenerator.h
-    RETREAT_MOTION_TYPE             = 9,                    // PointMovementGenerator.h
-    TIMED_FLEEING_MOTION_TYPE       = 10,                   // RandomMovementGenerator.h
-    POINT_MOTION_TYPE               = 11,                   // PointMovementGenerator.h
-    HOME_MOTION_TYPE                = 12,                   // HomeMovementGenerator.h
-    FLEEING_MOTION_TYPE             = 13,                   // RandomMovementGenerator.h
-    CONFUSED_MOTION_TYPE            = 14,                   // RandomMovementGenerator.h
-    EFFECT_MOTION_TYPE              = 15,                   // WrapperMovementGenerator.h
-    TAXI_MOTION_TYPE                = 16,                   // WaypointMovementGenerator.h
-    TIMED_RANDOM_MOTION_TYPE        = 17,                   // RandomMovementGenerator.h
-    FALL_MOTION_TYPE                = 18,                   // WrapperMovementGenerator.h
+    DISTRACT_MOTION_TYPE            = 4,                    // IdleMovementGenerator.h
+    STAY_MOTION_TYPE                = 5,                    // PointMovementGenerator.h
+    FOLLOW_MOTION_TYPE              = 6,                    // TargetedMovementGenerator.h
+    CHASE_MOTION_TYPE               = 7,                    // TargetedMovementGenerator.h
+    RETREAT_MOTION_TYPE             = 8,                    // PointMovementGenerator.h
+    TIMED_FLEEING_MOTION_TYPE       = 9,                    // RandomMovementGenerator.h
+    POINT_MOTION_TYPE               = 10,                   // PointMovementGenerator.h
+    HOME_MOTION_TYPE                = 11,                   // HomeMovementGenerator.h
+    FLEEING_MOTION_TYPE             = 12,                   // RandomMovementGenerator.h
+    CONFUSED_MOTION_TYPE            = 13,                   // RandomMovementGenerator.h
+    EFFECT_MOTION_TYPE              = 14,                   // WrapperMovementGenerator.h
+    TAXI_MOTION_TYPE                = 15,                   // WaypointMovementGenerator.h
+    TIMED_RANDOM_MOTION_TYPE        = 16,                   // RandomMovementGenerator.h
 
-    EXTERNAL_WAYPOINT_MOVE          = 18,                   // Only used in UnitAI::MovementInform when a waypoint is reached. The pathId >= 0 is added as additonal value
-    EXTERNAL_WAYPOINT_MOVE_START    = 19,                   // Only used in UnitAI::MovementInform when a waypoint is started. The pathId >= 0 is added as additional value
-    EXTERNAL_WAYPOINT_FINISHED_LAST = 20,                   // Only used in UnitAI::MovementInform when the waittime of the last wp is finished The pathId >= 0 is added as additional value
-
-    FORMATION_MOTION_TYPE           = 21,                   // TargetedMovementGenerator.h
+    EXTERNAL_WAYPOINT_MOVE          = 17,                   // Only used in UnitAI::MovementInform when a waypoint is reached. The pathId >= 0 is added as additonal value
+    EXTERNAL_WAYPOINT_MOVE_START    = 18,                   // Only used in UnitAI::MovementInform when a waypoint is started. The pathId >= 0 is added as additional value
+    EXTERNAL_WAYPOINT_FINISHED_LAST = 19,                   // Only used in UnitAI::MovementInform when the waittime of the last wp is finished The pathId >= 0 is added as additional value
 };
 
 enum MMCleanFlag
@@ -87,10 +84,10 @@ enum MMCleanFlag
 
 enum ForcedMovement
 {
-    FORCED_MOVEMENT_NONE    = 0,
-    FORCED_MOVEMENT_WALK    = 1,
-    FORCED_MOVEMENT_RUN     = 2,
-    FORCED_MOVEMENT_FLIGHT  = 3,
+    FORCED_MOVEMENT_NONE,
+    FORCED_MOVEMENT_WALK,
+    FORCED_MOVEMENT_RUN,
+    FORCED_MOVEMENT_FLIGHT,
 };
 
 class MotionMaster : private std::stack<MovementGenerator*>
@@ -135,28 +132,25 @@ class MotionMaster : private std::stack<MovementGenerator*>
         void MoveIdle();
         void MoveRandomAroundPoint(float x, float y, float z, float radius, float verticalZ = 0.0f, uint32 timer = 0);
         void MoveTargetedHome(bool runHome = true);
-        void MoveFollow(Unit* target, float dist, float angle, bool asMain = false, bool alwaysBoost = false);
-        void MoveInFormation(FormationSlotDataSPtr& sData, bool asMain = false);
+        void MoveFollow(Unit* target, float dist, float angle, bool asMain = false);
         void MoveStay(float x, float y, float z, float o = 0, bool asMain = false);
-        void MoveChase(Unit* target, float dist = 0.0f, float angle = 0.0f, bool moveFurther = false, bool walk = false, bool combat = true, bool delayed = false);
+        void MoveChase(Unit* target, float dist = 0.0f, float angle = 0.0f, bool moveFurther = false, bool walk = false, bool combat = true);
         void DistanceYourself(float dist);
         void MoveConfused();
         void MoveFleeing(Unit* enemy, uint32 time = 0);
-        void MovePoint(uint32 id, Position const& position, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, float speed = 0.f, bool generatePath = true, ObjectGuid guid = ObjectGuid(), uint32 relayId = 0);
+        void MovePoint(uint32 id, Position const& position, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, float speed = 0.f, bool generatePath = true);
         void MovePoint(uint32 id, float x, float y, float z, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, bool generatePath = true);
         void MovePointTOL(uint32 id, float x, float y, float z, bool takeOff, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE);
         void MovePath(std::vector<G3D::Vector3>& path, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, bool flying = false);
         void MovePath(std::vector<G3D::Vector3>& path, float o, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, bool flying = false);
-        // MovePath can not change speed or flying mid path due to how it works - if you wish to do that, split it into two paths
-        void MovePath(int32 pathId = 0, WaypointPathOrigin wpOrigin = PATH_NO_PATH, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, bool flying = false, float speed = 0.f, bool cyclic = false, ObjectGuid guid = ObjectGuid());
+        void MovePath(int32 pathId, WaypointPathOrigin wpOrigin = PATH_NO_PATH, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, bool flying = false, float speed = 0.f, bool cyclic = false);
         void MoveRetreat(float x, float y, float z, float o, uint32 delay);
-        void MoveWaypoint(uint32 pathId = 0, uint32 source = 0, uint32 initialDelay = 0, uint32 overwriteEntry = 0, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, ObjectGuid guid = ObjectGuid());
-        void MoveLinearWP(uint32 pathId = 0, uint32 source = 0, uint32 initialDelay = 0, uint32 overwriteEntry = 0, ForcedMovement forcedMovement = FORCED_MOVEMENT_NONE, ObjectGuid guid = ObjectGuid());
+        void MoveWaypoint(uint32 pathId = 0, uint32 source = 0, uint32 initialDelay = 0, uint32 overwriteEntry = 0);
         void MoveTaxi();
         void MoveDistract(uint32 timer);
         void MoveCharge(float x, float y, float z, float speed, uint32 id = EVENT_CHARGE);
         void MoveCharge(Unit& target, float speed, uint32 id = EVENT_CHARGE);
-        bool MoveFall(ObjectGuid guid = ObjectGuid(), uint32 relayId = 0);
+        bool MoveFall();
         void MoveJump(float x, float y, float z, float horizontalSpeed, float max_height, uint32 id = EVENT_JUMP);
         void MoveJumpFacing(float x, float y, float z, float o, float horizontalSpeed, float max_height, uint32 id = EVENT_JUMP);
 
@@ -174,7 +168,7 @@ class MotionMaster : private std::stack<MovementGenerator*>
 
         void InterruptPanic();
 
-        void PauseWaypoints(uint32 time);
+        void PauseWaypoints(uint32 time = MINUTE * IN_MILLISECONDS);
         void UnpauseWaypoints();
 
         void UnMarkFollowMovegens();

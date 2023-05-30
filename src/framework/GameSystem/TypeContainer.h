@@ -49,7 +49,7 @@ struct ContainerUnorderedMap< TypeList<H, T>, KEY_TYPE >
     ContainerUnorderedMap<T, KEY_TYPE> _TailElements;
 };
 
-template<class OBJECT_TYPES, class KEY_TYPE = OBJECT_HANDLE>
+template < class OBJECT_TYPES, class KEY_TYPE = OBJECT_HANDLE >
 class TypeUnorderedMapContainer
 {
     public:
@@ -70,18 +70,6 @@ class TypeUnorderedMapContainer
         SPECIFIC_TYPE* find(KEY_TYPE hdl, SPECIFIC_TYPE* /*obj*/)
         {
             return TypeUnorderedMapContainer::find(i_elements, hdl, (SPECIFIC_TYPE*)nullptr);
-        }
-
-        template<class SPECIFIC_TYPE>
-        typename std::unordered_map<KEY_TYPE, SPECIFIC_TYPE*>::iterator begin()
-        {
-            return i_elements._elements._element.begin();
-        }
-
-        template<class SPECIFIC_TYPE>
-        typename std::unordered_map<KEY_TYPE, SPECIFIC_TYPE*>::iterator end()
-        {
-            return i_elements._elements._element.end();
         }
 
     private:
@@ -181,9 +169,9 @@ class TypeUnorderedMapContainer
 };
 
 /*
- * @class ContainerMapList is a multi-type container for map elements
- * By itself it's meaningless but collaborating with TypeContainers,
- * it becomes the most powerful container in the whole system.
+ * @class ContainerMapList is a mulit-type container for map elements
+ * By itself its meaningless but collaborate along with TypeContainers,
+ * it become the most powerfully container in the whole system.
  */
 template<class OBJECT>
 struct ContainerMapList

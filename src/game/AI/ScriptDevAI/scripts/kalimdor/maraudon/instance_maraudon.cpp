@@ -173,7 +173,7 @@ struct go_ai_larva_spewer : public GameObjectAI
 {
     go_ai_larva_spewer(GameObject* go) : GameObjectAI(go) {}
 
-    void OnLootStateChange(Unit* /*user*/)
+    void OnLootStateChange()
     {
         if (m_go->GetLootState() == GO_ACTIVATED)
         {

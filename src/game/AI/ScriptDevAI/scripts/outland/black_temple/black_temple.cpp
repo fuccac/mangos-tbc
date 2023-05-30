@@ -51,13 +51,6 @@ void instance_black_temple::OnPlayerEnter(Player* /*pPlayer*/)
     DoTeleportAkamaIfCan();
 }
 
-void instance_black_temple::OnPlayerResurrect(Player* player)
-{
-    if (GetData(TYPE_RELIQUIARY) == IN_PROGRESS)
-        if (Creature* trigger = GetSingleCreatureFromStorage(NPC_RELIQUARY_COMBAT_TRIGGER))
-            trigger->EngageInCombatWith(player);
-}
-
 bool instance_black_temple::IsEncounterInProgress() const
 {
     for (uint32 i : m_auiEncounter)
@@ -125,7 +118,7 @@ void instance_black_temple::OnCreatureCreate(Creature* creature)
         case NPC_SKY_STALKER:
         case NPC_WIND_REAVER:
             if (creature->GetPositionZ() > 160.0f)
-                creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+                creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
             break;
         case NPC_RELIQUARY_COMBAT_TRIGGER:
             creature->GetCombatManager().SetLeashingDisable(true);
@@ -186,15 +179,6 @@ void instance_black_temple::OnCreatureRespawn(Creature* creature)
         case NPC_ASHTONGUE_STALKER:
             if (m_auiEncounter[TYPE_SHADE] == DONE)
                 creature->setFaction(FACTION_ASHTONGUE_FRIENDLY);
-            break;
-        case NPC_ANGERED_SOUL_FRAGMENT:
-        case NPC_SUFFERING_SOUL_FRAGMENT:
-        case NPC_HUNGERING_SOUL_FRAGMENT:
-            if (GetData(NPC_RELIQUARY_OF_SOULS) == DONE)
-            {
-                creature->SetRespawnDelay(time(nullptr) + 7 * DAY);
-                creature->ForcedDespawn();
-            }
             break;
     }
 }
@@ -335,45 +319,34 @@ void instance_black_temple::SetData(uint32 type, uint32 data)
             {
                 if (Creature* trigger = GetSingleCreatureFromStorage(NPC_RELIQUARY_COMBAT_TRIGGER))
                 {
-                    trigger->SetActiveObjectState(true);
-                    trigger->SetInCombatWithZone(false);
+                    trigger->SetInCombatWithZone();
                     if (!trigger->IsInCombat())
                     {
                         SetData(TYPE_RELIQUIARY, FAIL);
                         return;
                     }
                 }
-            }
-            if (data == DONE || data == FAIL)
-            {
-                if (Creature* trigger = GetSingleCreatureFromStorage(NPC_RELIQUARY_COMBAT_TRIGGER))
+                for (ObjectGuid guid : m_soulFragments)
                 {
-                    trigger->CombatStop();
-                    trigger->SetActiveObjectState(false);
+                    if (Creature* soul = instance->GetCreature(guid))
+                    {
+                        if (!soul->IsAlive())
+                        {
+                            soul->SetRespawnDelay(time(nullptr) + 7 * DAY);
+                            soul->SaveRespawnTime();
+                        }
+                    }
                 }
             }
+            if (data == DONE || data == FAIL)
+                if (Creature* trigger = GetSingleCreatureFromStorage(NPC_RELIQUARY_COMBAT_TRIGGER))
+                    trigger->CombatStop();
             if (data == DONE)
             {
                 for (ObjectGuid guid : m_soulFragments)
-                {
                     if (Creature* soul = instance->GetCreature(guid))
-                    {
-                        soul->SetRespawnDelay(time(nullptr) + 7 * DAY);
                         soul->ForcedDespawn();
-                    }
-                }
                 DoOpenPreMotherDoor();
-            }
-            if (data == FAIL)
-            {
-                for (ObjectGuid guid : m_soulFragments)
-                {
-                    if (Creature* soul = instance->GetCreature(guid))
-                    {
-                        soul->SetRespawnDelay(15);
-                        soul->Respawn();
-                    }
-                }
             }
             break;
         case TYPE_SHAHRAZ:
@@ -391,8 +364,6 @@ void instance_black_temple::SetData(uint32 type, uint32 data)
                 DoTeleportAkamaIfCan();
             break;
         case TYPE_ILLIDAN:
-            if (data == IN_PROGRESS && GetData(TYPE_COUNCIL) != DONE)
-                BanPlayersIfNoGm("Player engaged Illidan without killing council and Gamemaster being present in instance.");
             DoUseDoorOrButton(GO_ILLIDAN_DOOR_R);
             DoUseDoorOrButton(GO_ILLIDAN_DOOR_L);
             m_auiEncounter[type] = data;

@@ -183,15 +183,25 @@ struct mob_core_ragerAI : public CombatAI
     }
 };
 
+UnitAI* GetAI_boss_golemagg(Creature* creature)
+{
+    return new boss_golemaggAI(creature);
+}
+
+UnitAI* GetAI_mob_core_rager(Creature* creature)
+{
+    return new mob_core_ragerAI(creature);
+}
+
 void AddSC_boss_golemagg()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_golemagg";
-    pNewScript->GetAI = &GetNewAIInstance<boss_golemaggAI>;
+    pNewScript->GetAI = &GetAI_boss_golemagg;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "mob_core_rager";
-    pNewScript->GetAI = &GetNewAIInstance<mob_core_ragerAI>;
+    pNewScript->GetAI = &GetAI_mob_core_rager;
     pNewScript->RegisterSelf();
 }

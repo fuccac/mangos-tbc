@@ -24,10 +24,10 @@
 #include "Entities/Player.h"
 #include "Maps/Map.h"
 #include "World/World.h"
-#include "Server/WorldPacket.h"
+#include "WorldPacket.h"
 #include "Log.h"
-#include "Util/Util.h"
-#include "Util/ProgressBar.h"
+#include "Util.h"
+#include "ProgressBar.h"
 
 /// Create the Weather object
 Weather::Weather(uint32 zone, WeatherZoneChances const* weatherChances) :

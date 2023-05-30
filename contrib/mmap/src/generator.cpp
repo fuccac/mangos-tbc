@@ -16,51 +16,41 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <sstream>
-
 #include "MMapCommon.h"
 #include "MapBuilder.h"
 
 using namespace MMAP;
 
-bool checkDirectories(bool debugOutput, const char* workdir)
+bool checkDirectories(bool debugOutput)
 {
     vector<string> dirFiles;
-    char maps_dir[1024];
-    char vmaps_dir[1024];
-    char mmaps_dir[1024];
-    char meshes_dir[1024];
 
-    sprintf(maps_dir, "%s/%s", workdir, "maps");
-    if (getDirContents(dirFiles, maps_dir) == LISTFILE_DIRECTORY_NOT_FOUND || !dirFiles.size())
+    if (getDirContents(dirFiles, "maps") == LISTFILE_DIRECTORY_NOT_FOUND || !dirFiles.size())
     {
-        printf("'%s' directory is empty or does not exist\n", maps_dir);
+        printf("'maps' directory is empty or does not exist\n");
         return false;
     }
 
     dirFiles.clear();
-    sprintf(vmaps_dir, "%s/%s", workdir, "vmaps");
-    if (getDirContents(dirFiles, vmaps_dir, "*.vmtree") == LISTFILE_DIRECTORY_NOT_FOUND || !dirFiles.size())
+    if (getDirContents(dirFiles, "vmaps", "*.vmtree") == LISTFILE_DIRECTORY_NOT_FOUND || !dirFiles.size())
     {
-        printf("'%s' directory is empty or does not exist\n", vmaps_dir);
+        printf("'vmaps' directory is empty or does not exist\n");
         return false;
     }
 
     dirFiles.clear();
-    sprintf(mmaps_dir, "%s/%s", workdir, "mmaps");
-    if (getDirContents(dirFiles, mmaps_dir) == LISTFILE_DIRECTORY_NOT_FOUND)
+    if (getDirContents(dirFiles, "mmaps") == LISTFILE_DIRECTORY_NOT_FOUND)
     {
-        printf("'%s' directory does not exist\n", mmaps_dir);
+        printf("'mmaps' directory does not exist\n");
         return false;
     }
 
     dirFiles.clear();
     if (debugOutput)
     {
-        sprintf(meshes_dir, "%s/%s", workdir, "meshes");
-        if (getDirContents(dirFiles, meshes_dir) == LISTFILE_DIRECTORY_NOT_FOUND)
+        if (getDirContents(dirFiles, "meshes") == LISTFILE_DIRECTORY_NOT_FOUND)
         {
-            printf("'%s' directory does not exist (no place to put debugOutput files)\n", meshes_dir);
+            printf("'meshes' directory does not exist (no place to put debugOutput files)\n");
             return false;
         }
     }
@@ -71,8 +61,8 @@ bool checkDirectories(bool debugOutput, const char* workdir)
 void printUsage()
 {
     printf("Generator command line args\n\n");
-    printf("-? or /? or -h : Show this help\n");
-    printf("\"[#]\" : Build maps using specified map IDs.\n");
+    printf("-? or /? or -h : This help\n");
+    printf("[#] : Build only the map specified by #.\n");
     printf("--tile [#,#] : Build the specified tile\n");
     printf("--skipLiquid : liquid data for maps\n");
     printf("--skipContinents : skip continents\n");
@@ -82,17 +72,15 @@ void printUsage()
     printf("--silent : Make script friendly. No wait for user input, error, completion.\n");
     printf("--offMeshInput [file.*] : Path to file containing off mesh connections data.\n\n");
     printf("--configInputPath [file.*] : Path to json configuration file.\n\n");
-    printf("--buildGameObjects : builds only gameobject models for transports\n\n");
-    printf("--threads [#]: specifies number of threads to use for maps processing\n\n");
-    printf("--workdir [directory] : Path to basedir of maps/vmaps.\n\n");
+    printf("--onlyGO : builds only gameobject models for transports\n\n");
     printf("Example:\nmovemapgen (generate all mmap with default arg\n"
-           "movemapgen \"1 0 169\" (generate maps 1, 0 and 169)\n"
+           "movemapgen 0 (generate map 0)\n"
            "movemapgen 0 --tile 34,46 (builds only tile 34,46 of map 0)\n\n");
     printf("Please read readme file for more information and examples.\n");
 }
 
 bool handleArgs(int argc, char** argv,
-                std::vector<uint32>& mapIds,
+                int& mapId,
                 int& tileX,
                 int& tileY,
                 bool& skipLiquid,
@@ -101,18 +89,14 @@ bool handleArgs(int argc, char** argv,
                 bool& skipBattlegrounds,
                 bool& debugOutput,
                 bool& silent,
-                bool& buildGameObjects,
+                bool& buildOnlyGameobjectModels,
                 char*& offMeshInputPath,
-                char*& configInputPath,
-                int& threads,
-                char*& workdir)
+                char*& configInputPath)
 {
     char* param = NULL;
-    workdir = "./";
-
     for (int i = 1; i < argc; ++i)
     {
-        if (strcmp(argv[i], "--tile") == 0 && i + 1 < argc)
+        if (strcmp(argv[i], "--tile") == 0)
         {
             param = argv[++i];
             if (!param)
@@ -159,11 +143,11 @@ bool handleArgs(int argc, char** argv,
         {
             silent = true;
         }
-        else if (strcmp(argv[i], "--buildGameObjects") == 0)
+        else if (strcmp(argv[i], "--onlyGO") == 0)
         {
-            buildGameObjects = true;
+            buildOnlyGameobjectModels = true;
         }
-        else if (strcmp(argv[i], "--offMeshInput") == 0 && i + 1 < argc)
+        else if (strcmp(argv[i], "--offMeshInput") == 0)
         {
             param = argv[++i];
             if (!param)
@@ -171,40 +155,13 @@ bool handleArgs(int argc, char** argv,
 
             offMeshInputPath = param;
         }
-        else if (strcmp(argv[i], "--configInputPath") == 0 && i + 1 < argc)
+        else if (strcmp(argv[i], "--configInputPath") == 0)
         {
             param = argv[++i];
             if (!param)
                 return false;
 
             configInputPath = param;
-        }
-        else if (strcmp(argv[i], "--threads") == 0 && i + 1 < argc)
-        {
-            param = argv[++i];
-            if (!param)
-                return false;
-
-            threads = 0;
-            try
-            {
-                threads = std::stoi(param);
-            }
-            catch (std::invalid_argument& e) {}
-            catch (std::out_of_range& e) {}
-            if (threads <= 0)
-            {
-                printf("Invalid number of threads.\n");
-                return false;
-            }
-        }
-        else if (strcmp(argv[i], "--workdir") == 0 && i + 1 < argc)
-        {
-            param = argv[++i];
-            if (!param)
-                return false;
-
-            workdir = param;
         }
         else if ((strcmp(argv[i], "-?") == 0) || (strcmp(argv[i], "/?") == 0) || (strcmp(argv[i], "-h") == 0))
         {
@@ -213,18 +170,12 @@ bool handleArgs(int argc, char** argv,
         }
         else
         {
-            std::istringstream iss(argv[i]);
-            std::string token;
-            while (std::getline(iss, token, ' ')) {
-                try
-                {
-                    mapIds.push_back(std::stoi(token));
-                }
-                catch (std::invalid_argument& e) {}
-                catch (std::out_of_range& e) {}
-            }
-            if (!mapIds.size()) {
-                printf("Invalid map IDs provided.\n");
+            int map = atoi(argv[i]);
+            if (map > 0 || (map == 0 && (strcmp(argv[i], "0") == 0)))
+                mapId = map;
+            else if (!buildOnlyGameobjectModels)
+            {
+                printf("invalid map id\n");
                 return false;
             }
         }
@@ -233,71 +184,64 @@ bool handleArgs(int argc, char** argv,
     return true;
 }
 
+int finish(const char* message, int returnValue)
+{
+    printf("%s", message);
+    getchar();
+    return returnValue;
+}
+
 int main(int argc, char** argv)
 {
-    std::vector<uint32> mapIds;
-    int threads = -1;
+    int mapId = -1;
     int tileX = -1, tileY = -1;
 
     bool skipLiquid = false;
     bool skipContinents = false;
-    bool skipJunkMaps = false;
+    bool skipJunkMaps = true;
     bool skipBattlegrounds = false;
     bool debug = false;
     bool silent = false;
-    bool buildGameObjects = false;
+    bool buildOnlyGameobjectModels = false;
 
     char* offMeshInputPath = "offmesh.txt";
     char* configInputPath = "config.json";
-    char* workdir = NULL;
 
-    bool validParam = handleArgs(argc, argv, mapIds, tileX, tileY, skipLiquid,
+    bool validParam = handleArgs(argc, argv, mapId, tileX, tileY, skipLiquid,
                                  skipContinents, skipJunkMaps, skipBattlegrounds,
-                                 debug, silent, buildGameObjects, offMeshInputPath, configInputPath, threads, workdir);
+                                 debug, silent, buildOnlyGameobjectModels, offMeshInputPath, configInputPath);
 
     if (!validParam)
-    {
-        if (!silent)
-        {
-            printf("You have specified invalid parameters (use -? for more help)");
-            printUsage();
-        }
-        return -1;
-    }
+        return silent ? -1 : finish("You have specified invalid parameters (use -? for more help)", -1);
 
-    if (threads == -1) {
-        threads = std::thread::hardware_concurrency();
-    }
-
-    if ((mapIds.size() == 0) && debug)
+    if (mapId == -1 && debug && !buildOnlyGameobjectModels)
     {
         if (silent)
             return -2;
 
-        printf("You have specified debug output, but didn't specify maps to generate.\n");
+        printf("You have specifed debug output, but didn't specify a map to generate.\n");
         printf("This will generate debug output for ALL maps.\n");
         printf("Are you sure you want to continue? (y/n) ");
         if (getchar() != 'y')
             return 0;
     }
 
-    if (!checkDirectories(debug, workdir))
-        return -3;
+    if (!checkDirectories(debug))
+        return silent ? -3 : finish("Press any key to close...", -3);
 
-    MapBuilder builder(configInputPath, threads, skipLiquid, skipContinents, skipJunkMaps, skipBattlegrounds, debug, offMeshInputPath, workdir);
+    MapBuilder builder(configInputPath, skipLiquid, skipContinents, skipJunkMaps, skipBattlegrounds, debug, offMeshInputPath);
 
-    if (mapIds.size() == 1 && tileX > -1 && tileY > -1)
-        builder.buildSingleTile(mapIds.front(), tileX, tileY);
+    if (buildOnlyGameobjectModels)
+        builder.buildTransports();
+    else if (tileX > -1 && tileY > -1 && mapId >= 0)
+        builder.buildSingleTile(mapId, tileX, tileY);
+    else if (mapId >= 0)
+        builder.buildMap(uint32(mapId));
     else
-        builder.BuildMaps(mapIds);
-
-    if (buildGameObjects)
     {
+        builder.buildAllMaps();
         builder.buildTransports();
     }
 
-    if (!silent)
-        printf("Movemap build is complete!\n");
-
-    return 0;
+    return silent ? 1 : finish("Movemap build is complete!", 1);
 }

@@ -274,6 +274,11 @@ struct npc_general_andorovAI : public CombatAI, private DialogueHelper
     }
 };
 
+UnitAI* GetAI_npc_general_andorov(Creature* creature)
+{
+    return new npc_general_andorovAI(creature);
+}
+
 bool GossipHello_npc_general_andorov(Player* player, Creature* creature)
 {
     if (instance_ruins_of_ahnqiraj* instance = static_cast<instance_ruins_of_ahnqiraj*>(creature->GetInstanceData()))
@@ -369,17 +374,22 @@ struct npc_kaldorei_eliteAI : public CombatAI
     }
 };
 
+UnitAI* GetAI_npc_kaldorei_elite(Creature* creature)
+{
+    return new npc_kaldorei_eliteAI(creature);
+}
+
 void AddSC_boss_rajaxx()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "npc_general_andorov";
-    pNewScript->GetAI = &GetNewAIInstance<npc_general_andorovAI>;
+    pNewScript->GetAI = &GetAI_npc_general_andorov;
     pNewScript->pGossipHello = &GossipHello_npc_general_andorov;
     pNewScript->pGossipSelect = &GossipSelect_npc_general_andorov;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "npc_kaldorei_elite";
-    pNewScript->GetAI = &GetNewAIInstance<npc_kaldorei_eliteAI>;
+    pNewScript->GetAI = &GetAI_npc_kaldorei_elite;
     pNewScript->RegisterSelf();
 }

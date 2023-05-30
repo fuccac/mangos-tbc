@@ -25,7 +25,7 @@
 
 #include "Common.h"
 #include "Globals/SharedDefines.h"
-#include "Util/Timer.h"
+#include "Timer.h"
 
 class Player;
 class Map;

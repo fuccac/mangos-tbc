@@ -57,11 +57,10 @@ enum LogFilters
     LOG_FILTER_PATHFINDING        = 0x010000,               // 16 Pathfinding
     LOG_FILTER_MAP_LOADING        = 0x020000,               // 17 Map loading/unloading (MAP, VMAPS, MMAP)
     LOG_FILTER_EVENT_AI_DEV       = 0x040000,               // 18 Event AI actions
-    // reserved for future version
-    LOG_FILTER_DB_SCRIPT          = 0x100000,               // 20 Db scripts
+    LOG_FILTER_DB_SCRIPT          = 0x080000,               // 19 Db scripts
 };
 
-#define LOG_FILTER_COUNT            21
+#define LOG_FILTER_COUNT            20
 
 struct LogFilterData
 {

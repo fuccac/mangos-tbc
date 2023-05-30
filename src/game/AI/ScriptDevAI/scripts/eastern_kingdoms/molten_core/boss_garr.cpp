@@ -146,15 +146,25 @@ struct mob_fireswornAI : public ScriptedAI
     }
 };
 
+UnitAI* GetAI_boss_garr(Creature* creature)
+{
+    return new boss_garrAI(creature);
+}
+
+UnitAI* GetAI_mob_firesworn(Creature* creature)
+{
+    return new mob_fireswornAI(creature);
+}
+
 void AddSC_boss_garr()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_garr";
-    pNewScript->GetAI = &GetNewAIInstance<boss_garrAI>;
+    pNewScript->GetAI = &GetAI_boss_garr;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
     pNewScript->Name = "mob_firesworn";
-    pNewScript->GetAI = &GetNewAIInstance<mob_fireswornAI>;
+    pNewScript->GetAI = &GetAI_mob_firesworn;
     pNewScript->RegisterSelf();
 }

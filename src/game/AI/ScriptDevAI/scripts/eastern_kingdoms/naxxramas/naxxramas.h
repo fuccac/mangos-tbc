@@ -83,7 +83,6 @@ enum
     NPC_FEUGEN                  = 15930,
     NPC_TESLA_COIL              = 16218,
     NPC_NAXXRAMAS_TRIGGER       = 16082,
-    NPC_TOXIC_TUNNEL            = 16400,
 
     NPC_MOGRAINE                = 16062,
     NPC_ZELIEK                  = 16063,
@@ -204,8 +203,6 @@ enum
     SPELL_CLEAR_ALL_SHACKLES    = 29910,                    // Cast by Kel'Thuzad if more than three Guardians of Icecrown are controlled
 
     MAX_SHACKLES                = 3,                        // How many Guardians of Icecrown can be crowed control without Kel'Thuzad dispelling the shackles
-
-    SPELL_EXPLODE               = 28433,                    // Used by Living Poison blobs when players come in range
 };
 
 enum GothikSpellDummy
@@ -269,8 +266,6 @@ class instance_naxxramas : public ScriptedInstance, private DialogueHelper
         void OnObjectCreate(GameObject* gameObject) override;
 
         void OnCreatureDeath(Creature* creature) override;
-
-        void OnCreatureRespawn(Creature* creature) override;
 
         void SetData(uint32 type, uint32 data) override;
         uint32 GetData(uint32 type) const override;

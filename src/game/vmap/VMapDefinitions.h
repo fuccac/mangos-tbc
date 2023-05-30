@@ -32,7 +32,7 @@ namespace VMAP
 }
 
 #ifndef NO_CORE_FUNCS
-#include "Util/Errors.h"
+#include "Errors.h"
 #include "Log.h"
 #define ERROR_LOG(...) sLog.outError(__VA_ARGS__);
 #elif defined MMAP_GENERATOR

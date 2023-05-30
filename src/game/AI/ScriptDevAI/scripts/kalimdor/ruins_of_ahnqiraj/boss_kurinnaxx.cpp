@@ -122,10 +122,15 @@ struct boss_kurinnaxxAI : public CombatAI
     }
 };
 
+UnitAI* GetAI_boss_kurinnaxx(Creature* creature)
+{
+    return new boss_kurinnaxxAI(creature);
+}
+
 void AddSC_boss_kurinnaxx()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_kurinnaxx";
-    pNewScript->GetAI = &GetNewAIInstance<boss_kurinnaxxAI>;
+    pNewScript->GetAI = &GetAI_boss_kurinnaxx;
     pNewScript->RegisterSelf();
 }

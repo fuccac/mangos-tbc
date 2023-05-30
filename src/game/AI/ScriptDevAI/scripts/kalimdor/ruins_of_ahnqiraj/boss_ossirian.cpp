@@ -35,7 +35,7 @@ enum
     SAY_RAND_INTRO_2        = -1509023,
     SAY_RAND_INTRO_3        = -1509024,
     SAY_AGGRO               = -1509025,
-    SAY_SLAY                = 11450,
+    SAY_SLAY                = -1509026,
     SAY_DEATH               = -1509027,
 
     SPELL_CURSE_OF_TONGUES  = 25195,
@@ -82,6 +82,7 @@ enum OssirianActions
 
 struct boss_ossirianAI : public CombatAI
 {
+
     boss_ossirianAI(Creature* creature) :
         CombatAI(creature, OSSIRIAN_ACTION_MAX),
         m_instance(static_cast<instance_ruins_of_ahnqiraj*>(m_creature->GetInstanceData())),

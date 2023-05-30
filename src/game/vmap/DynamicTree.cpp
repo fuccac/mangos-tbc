@@ -18,7 +18,7 @@
 
 #include "DynamicTree.h"
 #include "Log.h"
-#include "Util/Timer.h"
+#include "Timer.h"
 #include "BIHWrap.h"
 #include "RegularGrid.h"
 #include "GameObjectModel.h"
