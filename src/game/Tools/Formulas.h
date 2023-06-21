@@ -149,8 +149,18 @@ namespace MaNGOS
             xp_gain *= target->GetCreatureInfo()->ExperienceMultiplier;
 
             xp_gain = target->GetModifierXpBasedOnDamageReceived(xp_gain);
-
-            return (uint32)(std::nearbyint(xp_gain * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL)));
+            /*CAF MODIFY START
+                Original:
+                return (uint32)(std::nearbyint(xp_gain * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL)));
+            */
+            if (unit->getLevel() >= 60) {
+                return (uint32)(std::nearbyint(xp_gain));
+            }
+            else{
+                 return (uint32)(std::nearbyint(xp_gain * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL)));
+            }
+            //CAF MODIFY END
+            
         }
 
         inline float xp_in_group_rate(uint32 count, bool /*isRaid*/)

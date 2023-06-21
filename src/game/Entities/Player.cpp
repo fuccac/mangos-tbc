@@ -13371,8 +13371,17 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
     QuestStatusData& q_status = mQuestStatus[quest_id];
 
     // Used for client inform but rewarded only in case not max level
-    uint32 xp = uint32(pQuest->XPValue(this) * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
-
+    /*CAF MODIFY START
+        Original:
+        uint32 xp = uint32(pQuest->XPValue(this) * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
+    */
+    uint32 xp;
+    if (getLevel() >= 60)
+       uint32 xp = uint32(pQuest->XPValue(this));
+    else
+       uint32 xp = uint32(pQuest->XPValue(this) * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
+    //CAF MODIFY END
+    
     if (getLevel() < GetMaxAttainableLevel())
         GiveXP(xp, nullptr);
     else
