@@ -395,14 +395,14 @@ CombatManeuverReturns PlayerbotWarriorAI::DoNextCombatManeuverPVE(Unit* pTarget)
             // Cast Last Stand first because it has lower cooldown
             if (LAST_STAND > 0 && !m_bot.HasAura(LAST_STAND, EFFECT_INDEX_0) && m_ai.CastSpell(LAST_STAND, m_bot) == SPELL_CAST_OK)
             {
-                m_ai.TellMaster("I'm using LAST STAND");
+                m_ai.TellMaster("Letztes Gefecht aktiv!");
                 return RETURN_CONTINUE;
             }
 
             // Cast Shield Wall only if Last Stand is on cooldown and not active
             if (SHIELD_WALL > 0 && (!m_bot.IsSpellReady(LAST_STAND) || LAST_STAND == 0) && !m_bot.HasAura(LAST_STAND, EFFECT_INDEX_0) && !m_bot.HasAura(SHIELD_WALL, EFFECT_INDEX_0) && m_ai.CastSpell(SHIELD_WALL, m_bot) == SPELL_CAST_OK)
             {
-                m_ai.TellMaster("I'm using SHIELD WALL");
+                m_ai.TellMaster("Schildwall aktiv!");
                 return RETURN_CONTINUE;
             }
         }
@@ -586,13 +586,13 @@ bool PlayerbotWarriorAI::Pull()
     {
         if (!m_ai.In_Range(m_ai.GetCurrentTarget(), AUTO_SHOT))
         {
-            m_ai.TellMaster("Can't pull: I'm out of range.");
+            m_ai.TellMaster("Außer Reichweite - nix mit pullen.");
             return false;
         }
 
         if (!m_bot.IsWithinLOSInMap(m_ai.GetCurrentTarget()))
         {
-            m_ai.TellMaster("Can't pull: target is out of sight.");
+            m_ai.TellMaster("Ich seh das Ziel nicht.");
             return false;
         }
 
@@ -610,6 +610,6 @@ bool PlayerbotWarriorAI::Pull()
         return true;
     }
 
-    m_ai.TellMaster("I cannot pull my target for an unkown reason.");
+    m_ai.TellMaster("Ich weiß nicht warum, aber i kann ned pullen - Crap.");
         return false;
 }

@@ -222,11 +222,11 @@ CombatManeuverReturns PlayerbotPriestAI::DoNextCombatManeuverPVE(Unit* pTarget)
         {
             if (CastSpell(FADE, &m_bot))
             {
-                m_ai.TellMaster("I'm casting fade.");
+                m_ai.TellMaster("Ich verblasse!.");
                 return RETURN_CONTINUE;
             }
             else
-                m_ai.TellMaster("I have AGGRO.");
+                m_ai.TellMaster("Vursicht, i hab aggro.");
         }
 
         // Heal myself
@@ -235,15 +235,15 @@ CombatManeuverReturns PlayerbotPriestAI::DoNextCombatManeuverPVE(Unit* pTarget)
         {
             if (CastSpell(POWER_WORD_SHIELD) & RETURN_CONTINUE)
             {
-                m_ai.TellMaster("I'm casting PW:S on myself.");
+                m_ai.TellMaster("Ich mach ma a Schild.");
                 return RETURN_CONTINUE;
             }
             else if (m_ai.IsHealer()) // Even if any other RETURN_ANY_OK - aside from RETURN_CONTINUE
-                m_ai.TellMaster("Your healer's about TO DIE. HELP ME.");
+                m_ai.TellMaster("HILFE, ich sterbe!");
         }
         if (m_ai.GetHealthPercent() < 35 && DESPERATE_PRAYER > 0 && m_ai.In_Reach(&m_bot, DESPERATE_PRAYER) && CastSpell(DESPERATE_PRAYER, &m_bot) & RETURN_CONTINUE)
         {
-            m_ai.TellMaster("I'm casting desperate prayer.");
+            m_ai.TellMaster("Ich caste verzweifeltes Gebet!");
             return RETURN_CONTINUE;
         }
         // Night Elves priest bot can also cast Elune's Grace to improve his/her dodge rating
@@ -381,7 +381,7 @@ CombatManeuverReturns PlayerbotPriestAI::DoNextCombatManeuverPVP(Unit* pTarget)
             if (SMITE && m_ai.In_Reach(pTarget, SMITE) && CastSpell(SMITE) & RETURN_ANY_OK)
                 return RETURN_CONTINUE;
 
-            m_ai.TellMaster("Couldn't find a spell to cast while dueling");
+            m_ai.TellMaster("Hab jetz nix zum casten gefunden im Duell");
         default:
             break;
     }
@@ -600,7 +600,7 @@ uint32 PlayerbotPriestAI::Neutralize(uint8 creatureType)
 
     if (creatureType != CREATURE_TYPE_UNDEAD)
     {
-        m_ai.TellMaster("I can't shackle that target.");
+        m_ai.TellMaster("Kann nur Untote fesseln, sorry");
         return 0;
     }
 

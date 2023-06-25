@@ -717,7 +717,7 @@ uint32 PlayerbotWarlockAI::Neutralize(uint8 creatureType)
     // TODO: add a way to handle spell cast by pet like Seduction
     if (creatureType != CREATURE_TYPE_DEMON && creatureType != CREATURE_TYPE_ELEMENTAL)
     {
-        m_ai.TellMaster("I can't banish that target.");
+        m_ai.TellMaster("Des kann i ned bannen.");
         return 0;
     }
 

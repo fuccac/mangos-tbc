@@ -190,7 +190,7 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
     // TODO: clarify/simplify: !pet->GetDeathState() != ALIVE
     if (pet && PET_MEND > 0 && pet->IsAlive() && pet->GetHealthPercent() < 50 && pVictim != &m_bot && !pet->HasAura(PET_MEND, EFFECT_INDEX_0) && m_ai.CastSpell(PET_MEND, m_bot) == SPELL_CAST_OK)
     {
-        m_ai.TellMaster("healing pet.");
+        m_ai.TellMaster("Ich heile mein Tier.");
         return RETURN_CONTINUE;
     }
     else if (pet && INTIMIDATION > 0 && pVictim == pet && !pet->HasAura(INTIMIDATION, EFFECT_INDEX_0) && m_ai.CastSpell(INTIMIDATION, m_bot) == SPELL_CAST_OK)
@@ -221,7 +221,7 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
         m_rangedCombat = false;
         m_ai.SetCombatStyle(PlayerbotAI::COMBAT_MELEE);
         if (!m_bot.GetUInt32Value(PLAYER_AMMO_ID))
-            m_ai.TellMaster("Out of ammo!");
+            m_ai.TellMaster("Hab ka Munition mehr!");
 
         // become monkey (increases dodge chance)...
         if (ASPECT_OF_THE_MONKEY > 0 && !m_bot.HasAura(ASPECT_OF_THE_MONKEY, EFFECT_INDEX_0))
@@ -230,7 +230,7 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
 
     if (TRANQUILIZING_SHOT > 0 && IsTargetEnraged(pTarget) && m_bot.IsSpellReady(TRANQUILIZING_SHOT) && m_ai.CastSpell(TRANQUILIZING_SHOT, *pTarget) == SPELL_CAST_OK)
     {
-        m_ai.TellMaster("Casting TRANQUILIZING SHOT onto %s", pTarget->GetName());
+        m_ai.TellMaster("Ich feuere TRANQUILIZING SHOT auf %s", pTarget->GetName());
         return RETURN_CONTINUE;
     }
 
@@ -422,7 +422,7 @@ void PlayerbotHunterAI::DoNonCombatActions()
             switch (res)
             {
                 case SPELL_CAST_OK:
-                    m_ai.TellMaster("summoning pet.");
+                    m_ai.TellMaster("Ich hole mein Tier.");
                     break;
                 case SPELL_FAILED_DONT_REPORT:
                     if (PET_REVIVE > 0)
@@ -430,35 +430,35 @@ void PlayerbotHunterAI::DoNonCombatActions()
                         switch (m_ai.CastSpell(PET_REVIVE, m_bot))
                         {
                             case SPELL_CAST_OK:
-                                m_ai.TellMaster("Pet is dead, reviving it.");
+                                m_ai.TellMaster("Tier tot - belebe es wieder.");
                                 break;
                             case SPELL_FAILED_NO_POWER: // Not enough mana, just wait for it
                                 break;
                             default:
                                 m_petSummonFailed = true;
-                                m_ai.TellMaster("summon pet failed!");
+                                m_ai.TellMaster("Konnte mein Tier nicht erreichen!");
                         }
                     }
                     break;
                 case SPELL_FAILED_NO_PET:   // This should not happen as if we went this far, there is a pet entry in the DB
                     m_petSummonFailed = true;
-                    m_ai.TellMaster("I don't appear to have a pet. Weird...");
+                    m_ai.TellMaster("I hab grad ka Tier dabei, komisch");
                     break;
                 default:                    // Also, pure sanity check: should never happen unless there is an error elsewhere
                     m_petSummonFailed = true;
-                    m_ai.TellMaster("summon pet failed!");
+                    m_ai.TellMaster("Konnte mein Tier nicht erreichen!");
                     break;
             }
         }
         else if (!(pet->IsAlive()))
         {
             if (PET_REVIVE > 0 && m_ai.CastSpell(PET_REVIVE, m_bot) == SPELL_CAST_OK)
-                m_ai.TellMaster("reviving pet.");
+                m_ai.TellMaster("Belebe Tier wieder.");
         }
         else if (pet->GetHealthPercent() < 50)
         {
             if (PET_MEND > 0 && pet->IsAlive() && !pet->HasAura(PET_MEND, EFFECT_INDEX_0) && m_ai.CastSpell(PET_MEND, m_bot) == SPELL_CAST_OK)
-                m_ai.TellMaster("healing pet.");
+                m_ai.TellMaster("Ich heile mein Tier.");
         }
         else if (pet->GetHappinessState() != HAPPY) // if pet is hungry
         {
@@ -482,7 +482,7 @@ void PlayerbotHunterAI::DoNonCombatActions()
                         DEBUG_LOG("FEED_PET benefit (%i)", benefit);
                         m_bot.DestroyItemCount(pItem, count, true); // remove item from inventory
                         m_bot.CastCustomSpell(&m_bot, PET_FEED, &benefit, nullptr, nullptr, TRIGGERED_OLD_TRIGGERED); // feed pet
-                        m_ai.TellMaster("feeding pet.");
+                        m_ai.TellMaster("Moment, Tier hungrig, ich füttere.");
                         m_ai.SetIgnoreUpdateTime(10);
                         return;
                     }
@@ -510,7 +510,7 @@ void PlayerbotHunterAI::DoNonCombatActions()
                                 int32 benefit = pet->GetCurrentFoodBenefitLevel(pItemProto->ItemLevel) * 15; // nutritional value of food
                                 m_bot.DestroyItemCount(pItem, count, true); // remove item from inventory
                                 m_bot.CastCustomSpell(&m_bot, PET_FEED, &benefit, nullptr, nullptr, TRIGGERED_OLD_TRIGGERED); // feed pet
-                                m_ai.TellMaster("feeding pet.");
+                                m_ai.TellMaster("Moment, Tier hungrig, ich füttere.");
                                 m_ai.SetIgnoreUpdateTime(10);
                                 return;
                             }
@@ -518,7 +518,7 @@ void PlayerbotHunterAI::DoNonCombatActions()
                     }
             }
             if (pet->HasAura(PET_MEND, EFFECT_INDEX_0) && !pet->HasAura(PET_FEED, EFFECT_INDEX_0))
-                m_ai.TellMaster("..no pet food!");
+                m_ai.TellMaster("Hab ka Tierfutter mit!");
             m_ai.SetIgnoreUpdateTime(7);
         }
     }

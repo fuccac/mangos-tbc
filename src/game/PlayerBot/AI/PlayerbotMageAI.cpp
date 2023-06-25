@@ -478,14 +478,14 @@ void PlayerbotMageAI::DoNonCombatActions()
         // So, conjure at *least* 1.25 stacks, ready to trade a stack and still have some left for self
         if (m_ai.FindDrink() == nullptr && CONJURE_WATER && m_ai.CastSpell(CONJURE_WATER, m_bot) == SPELL_CAST_OK)
         {
-            m_ai.TellMaster("I'm conjuring some water.");
+            m_ai.TellMaster("Ich mach a bissl Wasser.");
             m_ai.SetIgnoreUpdateTime(3);
             return;
         }
 
         if (m_ai.FindFood() == nullptr && CONJURE_FOOD && m_ai.CastSpell(CONJURE_FOOD, m_bot) == SPELL_CAST_OK)
         {
-            m_ai.TellMaster("I'm conjuring some food.");
+            m_ai.TellMaster("I mach was zum Essen.");
             m_ai.SetIgnoreUpdateTime(3);
             return;
         }
@@ -516,7 +516,7 @@ uint32 PlayerbotMageAI::Neutralize(uint8 creatureType)
 
     if (creatureType != CREATURE_TYPE_HUMANOID && creatureType != CREATURE_TYPE_BEAST)
     {
-        m_ai.TellMaster("I can't polymorph that target.");
+        m_ai.TellMaster("Des kann i ned sheepen.");
         return 0;
     }
 

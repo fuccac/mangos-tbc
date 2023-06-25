@@ -62,12 +62,12 @@ bool PlayerbotClassAI::EatDrinkBandage(bool bMana, unsigned char foodPercent, un
     {
         if (drinkItem)
         {
-            m_ai.TellMaster("I could use a drink.");
+            m_ai.TellMaster("Ich muss was trinken.");
             m_ai.UseItem(drinkItem);
         }
         if (foodItem)
         {
-            m_ai.TellMaster("I could use some food.");
+            m_ai.TellMaster("Ich muss was essen.");
             m_ai.UseItem(foodItem);
         }
         return true;
@@ -78,7 +78,7 @@ bool PlayerbotClassAI::EatDrinkBandage(bool bMana, unsigned char foodPercent, un
         Item* bandageItem = m_ai.FindBandage();
         if (bandageItem)
         {
-            m_ai.TellMaster("I could use first aid.");
+            m_ai.TellMaster("Ich brauch an Verband.");
             m_ai.UseItem(bandageItem);
             return true;
         }

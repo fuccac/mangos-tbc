@@ -785,7 +785,7 @@ uint32 PlayerbotDruidAI::Neutralize(uint8 creatureType)
 
     if (creatureType != CREATURE_TYPE_DRAGONKIN && creatureType != CREATURE_TYPE_BEAST)
     {
-        m_ai.TellMaster("I can't make that target hibernate.");
+        m_ai.TellMaster("Des Ziel kann i ned einschlafen lassen.");
         return 0;
     }
 
