@@ -13377,9 +13377,9 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
     */
     uint32 xp;
     if (getLevel() >= 60)
-       uint32 xp = uint32(pQuest->XPValue(this));
+       xp = uint32(pQuest->XPValue(this));
     else
-       uint32 xp = uint32(pQuest->XPValue(this) * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
+       xp = uint32(pQuest->XPValue(this) * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_QUEST));
     //CAF MODIFY END
     
     if (getLevel() < GetMaxAttainableLevel())
