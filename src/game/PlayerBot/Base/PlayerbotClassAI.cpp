@@ -554,7 +554,8 @@ bool PlayerbotClassAI::FleeFromPointIfCan(uint32 radius, Unit* pTarget, float x0
         if (foundCoords)
         {
             m_ai.InterruptCurrentCastingSpell();
-            m_bot.GetMotionMaster()->MovePoint(0, x, y, z);
+            //CAF MODIFY MOVEMENT RUN
+            m_bot.GetMotionMaster()->MovePoint(0, x, y, z,FORCED_MOVEMENT_RUN);
             m_ai.SetIgnoreUpdateTime(2);
             return true;
         }

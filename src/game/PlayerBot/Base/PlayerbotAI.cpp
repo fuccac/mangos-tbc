@@ -3200,7 +3200,7 @@ void PlayerbotAI::GetCombatTarget(Unit* forcedTarget)
             forcedTarget = candidateTarget;
             m_targetType = TARGET_THREATEN;
             if (m_mgr.m_confDebugWhisper)
-                TellMaster("Changing target to %s to protect %s", forcedTarget->GetName(), m_targetProtect->GetName());
+            TellMaster("Changing target to %s to protect %s", forcedTarget->GetName(), m_targetProtect->GetName());
         }
     }
 
@@ -3218,6 +3218,27 @@ void PlayerbotAI::GetCombatTarget(Unit* forcedTarget)
         m_ignoreNeutralizeEffect = true;    // Bypass IsNeutralized() checks on next updates
         m_targetChanged = true;
         m_targetType = (m_combatOrder & (ORDERS_TANK | ORDERS_MAIN_TANK) ? TARGET_THREATEN : TARGET_NORMAL);
+    }
+
+    // Dont care if we already have a target, we HAVE to assist in any case
+    // CAF MODIFY: Assist moved up and needs to force a target change. 
+    if ((m_combatOrder & ORDERS_ASSIST) && m_targetAssist)
+    {
+        candidateTarget = FindAttacker((ATTACKERINFOTYPE)(AIT_VICTIMNOTSELF | AIT_LOWESTTHREAT), m_targetAssist);
+        
+        if (candidateTarget && !IsNeutralized(candidateTarget))
+        {
+            if(m_targetCombat){
+                if (m_targetCombat == candidateTarget){
+                    return; // assist target == current target == null operation
+                }
+            }
+            m_targetCombat = candidateTarget;
+            if (m_mgr.m_confDebugWhisper)
+                TellMaster("Attacking %s to assist %s", m_targetCombat->GetName(), m_targetAssist->GetName());
+            m_targetType = (m_combatOrder & (ORDERS_TANK | ORDERS_MAIN_TANK) ? TARGET_THREATEN : TARGET_NORMAL);
+            m_targetChanged = true;
+        }
     }
 
     // we already have a target and we are not forced to change it
@@ -3240,20 +3261,6 @@ void PlayerbotAI::GetCombatTarget(Unit* forcedTarget)
         }
     }
 
-    // No target for now, try to get one
-    // do we have to assist someone?
-    if (!m_targetCombat && (m_combatOrder & ORDERS_ASSIST) && m_targetAssist)
-    {
-        candidateTarget = FindAttacker((ATTACKERINFOTYPE)(AIT_VICTIMNOTSELF | AIT_LOWESTTHREAT), m_targetAssist);
-        if (candidateTarget && !IsNeutralized(candidateTarget))
-        {
-            m_targetCombat = candidateTarget;
-            if (m_mgr.m_confDebugWhisper)
-                TellMaster("Attacking %s to assist %s", m_targetCombat->GetName(), m_targetAssist->GetName());
-            m_targetType = (m_combatOrder & (ORDERS_TANK | ORDERS_MAIN_TANK) ? TARGET_THREATEN : TARGET_NORMAL);
-            m_targetChanged = true;
-        }
-    }
     // are there any other attackers?
     if (!m_targetCombat)
     {

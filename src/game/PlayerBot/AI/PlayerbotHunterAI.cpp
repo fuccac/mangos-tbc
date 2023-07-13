@@ -73,6 +73,8 @@ PlayerbotHunterAI::PlayerbotHunterAI(Player& master, Player& bot, PlayerbotAI& a
 
     // BUFFS
     ASPECT_OF_THE_HAWK            = m_ai.initSpell(ASPECT_OF_THE_HAWK_1);
+    //CAF MODIFY: ADDED ASPECT OF THE PACK
+    ASPECT_OF_THE_PACK            = m_ai.initSpell(ASPECT_OF_THE_PACK_1);
     ASPECT_OF_THE_MONKEY          = m_ai.initSpell(ASPECT_OF_THE_MONKEY_1);
     RAPID_FIRE                    = m_ai.initSpell(RAPID_FIRE_1);
     TRUESHOT_AURA                 = m_ai.initSpell(TRUESHOT_AURA_1);
@@ -196,13 +198,37 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
     else if (pet && INTIMIDATION > 0 && pVictim == pet && !pet->HasAura(INTIMIDATION, EFFECT_INDEX_0) && m_ai.CastSpell(INTIMIDATION, m_bot) == SPELL_CAST_OK)
         return RETURN_CONTINUE;
 
-    /*    // racial traits
-        if (m_bot.getRace() == RACE_ORC && !m_bot.HasAura(BLOOD_FURY, EFFECT_INDEX_0))
-            m_ai.CastSpell(BLOOD_FURY, *m_bot);
-        else if (m_bot.getRace() == RACE_TROLL && !m_bot.HasAura(BERSERKING, EFFECT_INDEX_0))
-            m_ai.CastSpell(BERSERKING, *m_bot);
-    */
-    // check if ranged combat is possible: by default chose ranged combat
+    // CAF MODIFY: MOVED DISTANCEMANAGEMENT UP - ITS VERY IMPORTANT
+    // CAF MODIFY: Also changed to FleeFromPointIfCan instead of FleeFrom
+    // Distance management: avoid to be in the dead zone where neither melee nor range can be used: keep distance whenever possible
+    // If not in range: come closer
+    // Do not do it if passive or stay orders.
+    if (!m_ai.In_Reach(pTarget, AUTO_SHOT) &&
+            !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
+            (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
+    {
+        m_ai.InterruptCurrentCastingSpell();
+        m_bot.GetMotionMaster()->Clear(true);
+        m_bot.GetMotionMaster()->MoveFollow(pTarget, 20.0f, m_bot.GetOrientation());
+        m_ai.TellMaster("DEBUG: Ich schau, dass ich auf 20m zuwi geh.");
+        return RETURN_CONTINUE;
+    }
+    // If below ranged combat distance and bot is not attacked by target
+    // make it flee from target for a few seconds to get in ranged distance again
+    // Do not do it if passive or stay orders.
+    if (pVictim != &m_bot && m_bot.GetDistance(pTarget, true, DIST_CALC_COMBAT_REACH_WITH_MELEE) <= 8.0f &&
+            !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
+            (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
+    {
+        m_ai.InterruptCurrentCastingSpell();
+        float curr_x, curr_y, curr_z;
+        uint32 radius = 8;
+        m_bot.GetPosition(curr_x, curr_y, curr_z);
+        FleeFromPointIfCan(radius, pTarget, curr_x, curr_y, curr_z);
+        m_ai.SetIgnoreUpdateTime(2);
+        return RETURN_CONTINUE;
+    }
+
     bool meleeReach = m_bot.CanReachWithMeleeAttack(pTarget);
 
     if (!meleeReach && m_has_ammo)
@@ -254,30 +280,6 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
         }
     }
 
-    // Distance management: avoid to be in the dead zone where neither melee nor range can be used: keep distance whenever possible
-    // If not in range: come closer
-    // Do not do it if passive or stay orders.
-    if (!m_ai.In_Reach(pTarget, AUTO_SHOT) &&
-            !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
-            (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
-    {
-        m_ai.InterruptCurrentCastingSpell();
-        m_bot.GetMotionMaster()->MoveFollow(pTarget, 20.0f, m_bot.GetOrientation());
-        return RETURN_CONTINUE;
-    }
-    // If below ranged combat distance and bot is not attacked by target
-    // make it flee from target for a few seconds to get in ranged distance again
-    // Do not do it if passive or stay orders.
-    if (pVictim != &m_bot && m_bot.GetDistance(pTarget, true, DIST_CALC_COMBAT_REACH_WITH_MELEE) <= 8.0f &&
-            !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
-            (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
-    {
-        m_ai.InterruptCurrentCastingSpell();
-        m_ai.SetIgnoreUpdateTime(2);
-        m_bot.GetMotionMaster()->Clear(false);
-        m_bot.GetMotionMaster()->MoveFleeing(pTarget, 2);
-        return RETURN_CONTINUE;
-    }
 
     // damage spells
     if (m_ai.GetCombatStyle() == PlayerbotAI::COMBAT_RANGED)
@@ -403,7 +405,8 @@ void PlayerbotHunterAI::DoNonCombatActions()
         m_ai.CastSpell(TRUESHOT_AURA, m_bot);
 
     // buff myself
-    if (ASPECT_OF_THE_HAWK > 0 && !m_bot.HasAura(ASPECT_OF_THE_HAWK, EFFECT_INDEX_0))
+    // CAF MODIFY: Do not change back to HAWK IF PACK is active
+    if (ASPECT_OF_THE_HAWK > 0 && !m_bot.HasAura(ASPECT_OF_THE_HAWK, EFFECT_INDEX_0) && !m_bot.HasAura(ASPECT_OF_THE_PACK,EFFECT_INDEX_0))
         m_ai.CastSpell(ASPECT_OF_THE_HAWK, m_bot);
 
     // hp/mana check
@@ -411,7 +414,8 @@ void PlayerbotHunterAI::DoNonCombatActions()
         return;
 
     // check for pet
-    if (PET_SUMMON > 0 && !m_petSummonFailed && m_bot.GetPetGuid())
+    // CAF MODIFY: Changed m_bot.GetPetGuid() to !m_bot.GetPetGuid() - Useless otherwise
+    if (PET_SUMMON > 0 && !m_petSummonFailed && !m_bot.GetPetGuid())
     {
         // we can summon pet, and no critical summon errors before
         Pet* pet = m_bot.GetPet();

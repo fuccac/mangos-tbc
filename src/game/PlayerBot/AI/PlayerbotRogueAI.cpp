@@ -188,7 +188,14 @@ CombatManeuverReturns PlayerbotRogueAI::DoNextCombatManeuverPVE(Unit* pTarget)
             m_bot.GetMotionMaster()->MoveChase( pTarget );
         }
        }*/
-
+    //CAF MODIFY: ADD CHASE MOTION 
+    if(m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY)
+        {
+            m_ai.TellMaster( "DEBUG: Ich jage mein Ziel!" );
+            m_bot.GetMotionMaster()->Clear( true );
+            m_bot.GetMotionMaster()->MoveChase( pTarget );
+        }
+    //END
     // If bot is stealthed: pre-combat actions
     if (m_bot.HasAura(STEALTH, EFFECT_INDEX_0))
     {

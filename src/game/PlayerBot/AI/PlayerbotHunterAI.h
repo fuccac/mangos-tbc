@@ -163,8 +163,9 @@ class PlayerbotHunterAI : PlayerbotClassAI
                EXPLOSIVE_TRAP,
                ARCANE_TRAP,
                SNAKE_TRAP;
-
+       //CAF MODIFY: ADDED ASPECT OF THE PACK
         uint32 ASPECT_OF_THE_HAWK,
+               ASPECT_OF_THE_PACK,
                ASPECT_OF_THE_MONKEY,
                RAPID_FIRE,
                TRUESHOT_AURA,
