@@ -210,7 +210,6 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
         m_ai.InterruptCurrentCastingSpell();
         m_bot.GetMotionMaster()->Clear(true);
         m_bot.GetMotionMaster()->MoveFollow(pTarget, 20.0f, m_bot.GetOrientation());
-        m_ai.TellMaster("DEBUG: Ich schau, dass ich auf 20m zuwi geh.");
         return RETURN_CONTINUE;
     }
     // If below ranged combat distance and bot is not attacked by target

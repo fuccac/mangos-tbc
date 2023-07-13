@@ -191,7 +191,6 @@ CombatManeuverReturns PlayerbotRogueAI::DoNextCombatManeuverPVE(Unit* pTarget)
     //CAF MODIFY: ADD CHASE MOTION 
     if(m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY)
         {
-            m_ai.TellMaster( "DEBUG: Ich jage mein Ziel!" );
             m_bot.GetMotionMaster()->Clear( true );
             m_bot.GetMotionMaster()->MoveChase( pTarget );
         }
