@@ -4327,7 +4327,7 @@ void PlayerbotAI::TurnInQuests(WorldObject* questgiver)
             }
 
             else if (status == QUEST_STATUS_INCOMPLETE)
-                out << "|cffff0000Quest ungertig:|r "
+                out << "|cffff0000Quest unfertig:|r "
                     << " |cff808080|Hquest:" << questID << ':' << pQuest->GetQuestLevel() << "|h[" << questTitle << "]|h|r";
 
             else if (status == QUEST_STATUS_AVAILABLE)
