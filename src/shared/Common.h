@@ -46,8 +46,10 @@
 #include <unordered_set>
 #include <chrono>
 
-#include "Errors.h"
-#include "Threading.h"
+#include "Platform/Filesystem.h"
+
+#include "Util/Errors.h"
+#include "Multithreading/Threading.h"
 
 // included to use sleep_for()
 #include <thread>
@@ -62,6 +64,7 @@ typedef std::chrono::time_point<std::chrono::system_clock, std::chrono::millisec
 #  define I32FMT "%08I32X"
 #  define I64FMT "%016I64X"
 
+#  pragma warning ( disable : 4251 )
 #else
 
 #  define stricmp strcasecmp

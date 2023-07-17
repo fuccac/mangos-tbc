@@ -27,7 +27,7 @@
 #include <algorithm>
 
 AbstractPathMovementGenerator::AbstractPathMovementGenerator(const Movement::PointsArray& path, float orientation, int32 offset/* = 0*/) :
-    m_pathIndex(offset), m_orientation(orientation), m_speedChanged(false), m_firstCycle(false), m_startPoint(0)
+    m_pathIndex(offset), m_orientation(orientation), m_firstCycle(false), m_startPoint(0), m_speedChanged(false)
 {
     for (size_t i = 0; i < path.size(); ++i)
         m_path[i] = { path[i].x, path[i].y, path[i].z, ((i + 1) == path.size() ? orientation : 0), 0, 0 };
@@ -36,8 +36,8 @@ AbstractPathMovementGenerator::AbstractPathMovementGenerator(const Movement::Poi
     m_spline.reserve(m_path.size());
 }
 
-AbstractPathMovementGenerator::AbstractPathMovementGenerator(const WaypointPath* path, int32 offset/* = 0*/, bool cyclic/* = false*/) :
-    m_pathIndex(offset), m_orientation(0), m_speedChanged(false), m_cyclic(cyclic), m_firstCycle(false), m_startPoint(0)
+AbstractPathMovementGenerator::AbstractPathMovementGenerator(const WaypointPath* path, int32 offset/* = 0*/, bool cyclic/* = false*/, ObjectGuid guid /*= ObjectGuid()*/) :
+    m_pathIndex(offset), m_orientation(0), m_cyclic(cyclic), m_firstCycle(false), m_startPoint(0), m_guid(guid), m_speedChanged(false)
 {
     if (!path)
         return;
@@ -71,7 +71,7 @@ void AbstractPathMovementGenerator::Initialize(Unit& unit)
 
     if (m_path.empty())
     {
-        sLog.outError("AbstractPathMovementGenerator::Initialize Path empty for unit name %s entry %u counter %u.", unit.GetName(), unit.GetEntry(), unit.GetGUIDLow());
+        sLog.outError("AbstractPathMovementGenerator::Initialize Path empty for unit name %s entry %u dbguid %u.", unit.GetName(), unit.GetEntry(), unit.GetDbGuid());
         return;
     }
 
@@ -143,7 +143,12 @@ bool AbstractPathMovementGenerator::Update(Unit& unit, const uint32& diff)
     {
         // Foolproofing if current spline was tampered with or ran out of splines in the path:
         if (unit.movespline->FinalDestination() != m_spline.back())
-            return false;
+        {
+            if (unit.movespline->Finalized()) // stopped movement evidence
+                Initialize(unit);
+            else
+                return false;
+        }
 
         if (m_cyclic)
         {
@@ -197,7 +202,7 @@ void AbstractPathMovementGenerator::MovementInform(Unit& unit)
     if (node.script_id)
     {
         DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Creature movement start script %u at point %u for %s.", node.script_id, index, unit.GetGuidStr().c_str());
-        unit.GetMap()->ScriptsStart(sCreatureMovementScripts, node.script_id, &unit, &unit);
+        unit.GetMap()->ScriptsStart(SCRIPT_TYPE_CREATURE_MOVEMENT, node.script_id, &unit, &unit);
     }
 
     // unit.SummonCreature(1, node.x, node.y, node.z, node.orientation, TEMPSPAWN_TIMED_DESPAWN, 5000);
@@ -220,15 +225,15 @@ void AbstractPathMovementGenerator::MovementInform(Unit& unit)
     }
 }
 
-FixedPathMovementGenerator::FixedPathMovementGenerator(Unit& creature, int32 pathId, WaypointPathOrigin wpOrigin, ForcedMovement forcedMovement, bool flying, float speed, int32 offset, bool cyclic) :
-    AbstractPathMovementGenerator((pathId || wpOrigin != PATH_NO_PATH ? sWaypointMgr.GetPathFromOrigin(creature.GetEntry(), creature.GetGUIDLow(), pathId, (wpOrigin == PATH_NO_PATH && pathId ? PATH_FROM_ENTRY : wpOrigin))
-        : sWaypointMgr.GetDefaultPath(creature.GetEntry(), creature.GetGUIDLow())), offset, cyclic), m_flying(flying), m_speed(speed), m_forcedMovement(forcedMovement)
+FixedPathMovementGenerator::FixedPathMovementGenerator(Unit& creature, int32 pathId, WaypointPathOrigin wpOrigin, ForcedMovement forcedMovement, bool flying, float speed, int32 offset, bool cyclic, ObjectGuid guid) :
+    AbstractPathMovementGenerator((pathId || wpOrigin != PATH_NO_PATH ? sWaypointMgr.GetPathFromOrigin(creature.GetEntry(), creature.GetDbGuid(), pathId, (wpOrigin == PATH_NO_PATH && pathId ? PATH_FROM_ENTRY : wpOrigin))
+        : sWaypointMgr.GetDefaultPath(creature.GetEntry(), creature.GetDbGuid())), offset, cyclic, guid), m_flying(flying), m_speed(speed), m_forcedMovement(forcedMovement)
 {
 }
 
 FixedPathMovementGenerator::FixedPathMovementGenerator(Creature& creature) :
-    AbstractPathMovementGenerator((creature.GetMotionMaster()->GetPathId() ? sWaypointMgr.GetPathFromOrigin(creature.GetEntry(), creature.GetGUIDLow(), creature.GetMotionMaster()->GetPathId(), PATH_FROM_ENTRY)
-        : sWaypointMgr.GetDefaultPath(creature.GetEntry(), creature.GetGUIDLow())), 0, true), m_flying(true), m_speed(0.f), m_forcedMovement(FORCED_MOVEMENT_NONE)
+    AbstractPathMovementGenerator((creature.GetMotionMaster()->GetPathId() ? sWaypointMgr.GetPathFromOrigin(creature.GetEntry(), creature.GetDbGuid(), creature.GetMotionMaster()->GetPathId(), PATH_FROM_ENTRY)
+        : sWaypointMgr.GetDefaultPath(creature.GetEntry(), creature.GetDbGuid())), 0, true), m_flying(true), m_speed(0.f), m_forcedMovement(FORCED_MOVEMENT_NONE)
 {
 }
 
@@ -242,7 +247,6 @@ void FixedPathMovementGenerator::Initialize(Unit& unit)
     {
         m_firstCycle = true;
         m_startPoint = m_pathIndex;
-        m_flightSplineSyncTimer.Reset(5000);
         unit.addUnitState(UNIT_STAT_ROAMING_MOVE);
     }
 }
@@ -265,24 +269,6 @@ void FixedPathMovementGenerator::Reset(Unit& unit)
     AbstractPathMovementGenerator::Reset(unit);
 }
 
-bool FixedPathMovementGenerator::Update(Unit& unit, const uint32& diff)
-{
-    m_flightSplineSyncTimer.Update(diff);
-    if (m_flightSplineSyncTimer.Passed())
-    {
-        if (!unit.movespline->Finalized())
-        {
-            WorldPacket packet(SMSG_FLIGHT_SPLINE_SYNC, 4 + 8);
-            packet << unit.movespline->GetElapsedValue();
-            packet << unit.GetObjectGuid();
-            unit.SendMessageToSet(packet, true);
-            m_flightSplineSyncTimer.Reset(5000);
-        }
-    }
-
-    return AbstractPathMovementGenerator::Update(unit, diff);
-}
-
 bool FixedPathMovementGenerator::Move(Unit& unit) const
 {
     Movement::MoveSplineInit init(unit);
@@ -295,6 +281,16 @@ bool FixedPathMovementGenerator::Move(Unit& unit) const
         init.SetWalk(!unit.hasUnitState(UNIT_STAT_RUNNING));
     if (m_flying)
         init.SetFly();
+    else
+    {
+        // non catmullrom
+        if (!unit.movespline->Finalized())
+            unit.UpdateSplinePosition(true);
+        Position pos = unit.GetPosition(unit.GetTransport());
+        init.Path()[0].x = pos.x; init.Path()[0].y = pos.y; init.Path()[0].z = pos.z;
+        if (!init.CheckBounds())
+            ERROR_DB_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Path movement non-catmullrom pathId %u point %u for %s has invalid out of bounds spline. Likely meant to be split into several. (by script action or waittime)", unit.GetMotionMaster()->GetPathId(), m_pathIndex, unit.GetName());
+    }
     if (m_orientation != 0.f)
         init.SetFacing(m_orientation);
     if (m_speed != 0.f)
@@ -394,7 +390,7 @@ bool TaxiMovementGenerator::Resume(Unit& unit)
     {
         Player& player = static_cast<Player&>(unit);
 
-        if (player.IsMounted())
+        if (player.GetMountID())
             player.OnTaxiFlightSplineEnd();
 
         if (!player.OnTaxiFlightSplineUpdate())

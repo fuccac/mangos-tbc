@@ -87,6 +87,7 @@ cmake_install.cmake
 #
 # Special exceptions
 #
-SQL_Inserts
+
 # recastnavigation directory needs exception
 !dep/recastnavigation/RecastDemo/Build/
+/_build/

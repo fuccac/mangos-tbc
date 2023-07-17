@@ -30,9 +30,8 @@ enum
     GO_REFECTORY_DOOR       = 183296,                       // door opened when blackheart the inciter dies
     GO_SCREAMING_HALL_DOOR  = 183295,                       // door opened when grandmaster vorpil dies and player comes in range
 
-    SAY_HELLMAW_INTRO       = -1555000,
-
     SPELL_BANISH            = 30231,                        // spell is handled in creature_template_addon;
+    SPELL_SHAPE_OF_BEAST    = 33949,
 };
 
 class instance_shadow_labyrinth : public ScriptedInstance

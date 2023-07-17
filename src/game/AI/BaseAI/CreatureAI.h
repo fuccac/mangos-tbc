@@ -27,6 +27,11 @@ class CreatureAI : public UnitAI
 {
     public:
         explicit CreatureAI(Creature* creature);
+        explicit CreatureAI(Creature* creature, uint32 combatActions);
+
+        virtual void Reset();
+
+        virtual void OnRemoveFromWorld() {}
 
         virtual void EnterCombat(Unit* enemy) override;
         virtual void AttackStart(Unit* who) override;
@@ -45,10 +50,25 @@ class CreatureAI : public UnitAI
 
         void HandleAssistanceCall(Unit* sender, Unit* invoker) override;
 
+        void AddUnreachabilityCheck(); // use in constructor
+
+        CreatureSpellList const& GetSpellList() const;
+
+        void TimedFleeingEnded() override;
+
+        void OnCallForHelp(Unit* enemy) override;
+
+        // Starts follow and in case of player engages player based formation
+        virtual void RequestFollow(Unit* followee) override;
+        virtual void RelinquishFollow(ObjectGuid follower) override;
     protected:
+
         Creature* m_creature;
-        bool m_deathPrevention;
         bool m_deathPrevented;
+
+        float m_followAngle;
+        float m_followDist;
+        ObjectGuid m_requestedFollower;
 };
 
 #endif

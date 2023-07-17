@@ -109,9 +109,9 @@ const uint32 npcStasisEntry[] =
     22825, 20888, 22827, 22826, 22828
 };
 
-struct npc_ethereum_prisonerAI : public ScriptedAI, public CombatActions
+struct npc_ethereum_prisonerAI : public ScriptedAI
 {
-    npc_ethereum_prisonerAI(Creature* creature) : ScriptedAI(creature), CombatActions(0)
+    npc_ethereum_prisonerAI(Creature* creature) : ScriptedAI(creature, 0)
     {
         AddCustomAction(PRISONER_ATTACK, true, [&]
         {
@@ -182,11 +182,6 @@ struct npc_ethereum_prisonerAI : public ScriptedAI, public CombatActions
             ResetTimer(PRISONER_TALK, 3500);
     }
 
-    void Reset() override
-    {
-
-    }
-
     int32 GetTextId()
     {
         int32 textId = 0;
@@ -222,26 +217,7 @@ struct npc_ethereum_prisonerAI : public ScriptedAI, public CombatActions
         }
         return spellId;
     }
-
-    void ExecuteActions() override {}
-
-    void UpdateAI(const uint32 diff) override
-    {
-        UpdateTimers(diff, m_creature->IsInCombat());
-
-        if (!m_creature->SelectHostileTarget() || !m_creature->GetVictim())
-            return;
-
-        ExecuteActions();
-
-        DoMeleeAttackIfReady();
-    }
 };
-
-UnitAI* GetAInpc_ethereum_prisoner(Creature* creature)
-{
-    return new npc_ethereum_prisonerAI(creature);
-}
 
 bool GOUse_go_ethereum_prison(Player* player, GameObject* go)
 {
@@ -975,7 +951,7 @@ struct go_unadorned_spike : public GameObjectAI
 {
     go_unadorned_spike(GameObject* go) : GameObjectAI(go) {}
 
-    void OnLootStateChange() override
+    void OnLootStateChange(Unit* /*user*/) override
     {
         if (m_go->GetLootState() != GO_ACTIVATED)
             return;
@@ -1031,6 +1007,99 @@ GameObjectAI* GetAI_go_containment(GameObject* go)
     return new go_containment(go);
 }
 
+// note - conditions are likely some form of unit or ai condition, currently only chess event has one so using this overly simplified system of enabling it on encounter start
+struct go_aura_generator : public GameObjectAI
+{
+    go_aura_generator(GameObject* go) : GameObjectAI(go), m_auraSearchTimer(1000), m_spellInfo(sSpellTemplate.LookupEntry<SpellEntry>(go->GetGOInfo()->auraGenerator.auraID1)), m_started(m_spellInfo && !go->GetGOInfo()->auraGenerator.conditionID1 && !go->GetGOInfo()->auraGenerator.conditionID2),
+                                        m_radius(m_spellInfo ? GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[EFFECT_INDEX_0])) : 0.f) {}
+
+    uint32 m_auraSearchTimer;
+    SpellEntry const* m_spellInfo;
+    bool m_started;
+    float m_radius; // must be after m_spellInfo
+
+    void ReceiveAIEvent(AIEventType eventType, uint32 miscValue = 0) override
+    {
+        if (eventType == AI_EVENT_CUSTOM_A)
+            ChangeState(bool(miscValue));
+    }
+
+    void ChangeState(bool apply)
+    {
+        m_started = apply;
+        if (apply)
+            CheckAndApplyAura();
+        else
+        {
+            for (auto& ref : m_go->GetMap()->GetPlayers())
+            {
+                Player* player = ref.getSource();
+                auto bounds = player->GetSpellAuraHolderBounds(m_spellInfo->Id);
+                SpellAuraHolder* myHolder = nullptr;
+                for (auto itr = bounds.first; itr != bounds.second; ++itr)
+                {
+                    SpellAuraHolder* holder = (*itr).second;
+                    if (holder->GetCasterGuid() == m_go->GetObjectGuid())
+                    {
+                        myHolder = holder;
+                        break;
+                    }
+                }
+                if (myHolder)
+                    player->RemoveSpellAuraHolder(myHolder);
+            }
+        }
+    }
+
+    void CheckAndApplyAura()
+    {
+        for (auto& ref : m_go->GetMap()->GetPlayers())
+        {
+            Player* player = ref.getSource();
+            float x, y, z;
+            m_go->GetPosition(x, y, z);
+            auto bounds = player->GetSpellAuraHolderBounds(m_spellInfo->Id);
+            SpellAuraHolder* myHolder = nullptr;
+            for (auto itr = bounds.first; itr != bounds.second; ++itr)
+            {
+                SpellAuraHolder* holder = (*itr).second;
+                if (holder->GetCasterGuid() == m_go->GetObjectGuid())
+                {
+                    myHolder = holder;
+                    break;
+                }
+            }
+            bool isCloseEnough = player->GetDistance(x, y, z, DIST_CALC_COMBAT_REACH) < m_go->GetGOInfo()->auraGenerator.radius;
+            if (!myHolder)
+            {
+                if (isCloseEnough)
+                {
+                    myHolder = CreateSpellAuraHolder(m_spellInfo, player, m_go);
+                    GameObjectAura* Aur = new GameObjectAura(m_spellInfo, EFFECT_INDEX_0, nullptr, nullptr, myHolder, player, m_go);
+                    myHolder->AddAura(Aur, EFFECT_INDEX_0);
+                    if (!player->AddSpellAuraHolder(myHolder))
+                        delete myHolder;
+                }
+            }
+            else if (!isCloseEnough)
+                player->RemoveSpellAuraHolder(myHolder);
+        }
+    }
+
+    void UpdateAI(const uint32 diff) override
+    {
+        if (!m_started)
+            return;
+
+        if (m_auraSearchTimer <= diff)
+        {
+            m_auraSearchTimer = 1000;
+            CheckAndApplyAura();
+        }
+        else m_auraSearchTimer -= diff;
+    }
+};
+
 void AddSC_go_scripts()
 {
     Script* pNewScript = new Script;
@@ -1040,7 +1109,7 @@ void AddSC_go_scripts()
 
     pNewScript = new Script;
     pNewScript->Name = "npc_ethereum_prisoner";
-    pNewScript->GetAI = &GetAInpc_ethereum_prisoner;
+    pNewScript->GetAI = &GetNewAIInstance<npc_ethereum_prisonerAI>;
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
@@ -1116,5 +1185,10 @@ void AddSC_go_scripts()
     pNewScript = new Script;
     pNewScript->Name = "go_containment_coffer";
     pNewScript->GetGameObjectAI = &GetAI_go_containment;
+    pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
+    pNewScript->Name = "go_aura_generator";
+    pNewScript->GetGameObjectAI = &GetNewAIInstance<go_aura_generator>;
     pNewScript->RegisterSelf();
 }

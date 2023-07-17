@@ -125,7 +125,7 @@ struct npc_millhouse_manastormAI : public ScriptedAI, private DialogueHelper
         DoScriptText(SAY_DEATH, m_creature);
 
         /*for questId 10886 (heroic mode only)
-        if (m_pInstance && m_pInstance->GetData(TYPE_HARBINGERSKYRISS) != DONE)
+        if (m_instance && m_instance->GetData(TYPE_HARBINGERSKYRISS) != DONE)
             ->FailQuest();*/
     }
 
@@ -172,11 +172,6 @@ struct npc_millhouse_manastormAI : public ScriptedAI, private DialogueHelper
                 m_creature->SetStandState(UNIT_STAND_STATE_STAND);
                 break;
         }
-    }
-
-    void HandleMovementOnAttackStart(Unit* victim) const override
-    {
-        m_creature->GetMotionMaster()->MoveChase(victim, m_attackDistance, m_attackAngle, false);
     }
 
     void UpdateAI(const uint32 uiDiff) override

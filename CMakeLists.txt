@@ -16,7 +16,8 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 # Minimum required cmake version to run the build
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.9)
+cmake_policy(SET CMP0069 NEW)
 
 # Will cache object files if ccache is available
 # Must be set at top of cmake outside of project header
@@ -27,8 +28,8 @@ endif()
 
 project(CMaNGOS_TBC)
 
-# Require C++ 14 support
-set(CMAKE_CXX_STANDARD 14)
+# Require C++ 17 support
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -52,7 +53,7 @@ MACRO(DisableWarnings)
     set(SearchWarningsFlag2 "/Wall")
   else()
     set(DisableWarningsFlag "-w")
-    set(SearchWarningsFlag1 "-[+W?]pedentic")
+    set(SearchWarningsFlag1 "-[+W?]pedantic")
     set(SearchWarningsFlag2 "-Wall")
   endif()
   foreach(temp_flag
@@ -155,10 +156,10 @@ if(WIN32)
   set(CONF_DIR ${BIN_DIR})
   get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG) # ninja generator does not support $(Configuration)
   if(MSVC AND "$ENV{CLION_IDE}" STREQUAL "" AND IS_MULTI_CONFIG)
-    set(DEV_BIN_DIR ${CMAKE_SOURCE_DIR}/${BIN_FOLDER_NAME}/${DEP_ARCH}_$(Configuration))
+    set(DEV_BIN_DIR ${CMAKE_BINARY_DIR}/${BIN_FOLDER_NAME}/${DEP_ARCH}_$(Configuration))
     set(DEV_PROVIDED_LIBS_FOLDER ${CMAKE_SOURCE_DIR}/dep/lib/${DEP_ARCH}_$(Configuration))
   else()
-    set(DEV_BIN_DIR ${CMAKE_SOURCE_DIR}/${BIN_FOLDER_NAME}/${DEP_ARCH}_${CMAKE_BUILD_TYPE})
+    set(DEV_BIN_DIR ${CMAKE_BINARY_DIR}/${BIN_FOLDER_NAME}/${DEP_ARCH}_${CMAKE_BUILD_TYPE})
     set(DEV_PROVIDED_LIBS_FOLDER ${CMAKE_SOURCE_DIR}/dep/lib/${DEP_ARCH}_${CMAKE_BUILD_TYPE})
   endif()
 
@@ -212,7 +213,7 @@ if (POLICY CMP0074)
 endif()
 
 # Find needed packages and if necessery abort if something important is missing
-find_package(Boost REQUIRED COMPONENTS system program_options thread regex serialization)
+find_package(Boost REQUIRED COMPONENTS system program_options thread regex serialization filesystem)
 
 if(NOT Boost_FOUND AND (BUILD_GAME_SERVER OR BUILD_LOGIN_SERVER))
   message(STATUS "BOOST_ROOT = $ENV{BOOST_ROOT}")
@@ -254,42 +255,17 @@ if(UNIX AND (BUILD_GAME_SERVER OR BUILD_LOGIN_SERVER OR BUILD_EXTRACTORS))
     find_package(MySQL REQUIRED)
   endif()
 
-  if(APPLE)
-    find_package(OpenSSL QUIET)
-    if(NOT OpenSSL_FOUND AND NOT OPENSSL_FOUND)
-      # If OpenSSL path isn't specified on mac we set the one that Homebrew uses
-      # and try again. This typically makes CMake find the OpenSSL headers and version.
-      # Homebrew installs the OpenSSL libraries with a version in the library file names
-      # though, like libcrypto.1.1.dylib, but CMake doesn't seem to check that file name
-      # pattern and might eventually find a non-matching library installed by macOS in
-      # a default search path. To avoid that, we'll also point pkg-config to the Homebrew
-      # location for OpenSSL details, because CMake checks pkg-config info as well.
-      set(OPENSSL_ROOT_DIR /usr/local/opt/openssl)
-      set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:/usr/local/opt/openssl/lib/pkgconfig")
-      find_package(OpenSSL)
-    endif()
-  else()
-    find_package(OpenSSL)
-  endif()
+  find_package(OpenSSL REQUIRED)
 
-  if(NOT OpenSSL_FOUND AND NOT OPENSSL_FOUND)
-    message(FATAL_ERROR "OpenSSL not found!")
-  else()
-    if(OpenSSL_VERSION AND NOT OPENSSL_VERSION)
-      set(OPENSSL_VERSION ${OpenSSL_VERSION})
-    endif()
-    if(OPENSSL_VERSION VERSION_LESS 1.0.1)
-      message(WARNING "You are using an outdated version of OpenSSL library. It may be incompatible or vulnerable.")
-    endif()
+  message(STATUS "Found OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+  if(OPENSSL_VERSION VERSION_LESS 1.1)
+    message(SEND_ERROR "OpenSSL: This project requires OpenSSL version 1.1.0 or higher")
+  endif()
+  if(OPENSSL_VERSION VERSION_LESS 1.1.1 OR (OPENSSL_VERSION VERSION_GREATER 3.0 AND OPENSSL_VERSION VERSION_LESS 3.0.7))
+    message(WARNING "OpenSSL: Your OpenSSL version is critically vulnerable or no longer being maintained, consider upgrading")
   endif()
 endif()
 
-find_package(ZLIB QUIET)
-if(NOT ZLIB_FOUND)
-  # use internal source code
-  set(ZLIB_LIBRARIES "zlib")
-  message(STATUS "Could not find ZLIB on your system. The provided sources will be used.")
-endif()
 if(BUILD_EXTRACTORS)
   find_package(BZip2 QUIET)
   if(NOT (BZip2_FOUND OR BZIP2_FOUND))
@@ -332,7 +308,7 @@ endif()
 
 configure_file(
   ${CMAKE_SOURCE_DIR}/src/shared/revision.h.in
-  ${CMAKE_SOURCE_DIR}/src/shared/revision.h
+  ${CMAKE_BINARY_DIR}/src/shared/revision.h
   @ONLY
 )
 
@@ -381,10 +357,6 @@ add_subdirectory(dep)
 # Don't place this above 'dep' subdirectory! Because of defines build will crash.
 set(DEFINITIONS "")
 
-if(UNIX)
-  set(DEFINITIONS SYSCONFDIR="../${CONF_FOLDER_NAME}/")
-endif()
-
 if(POSTGRESQL)
   set(DEFINITIONS ${DEFINITIONS} DO_POSTGRESQL)
 else()
@@ -399,6 +371,10 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
   set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "${DEFINITIONS};${DEFINITIONS_MINSIZEREL}")
 else()
   set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "${DEFINITIONS};${DEFINITIONS_RELEASE}")
+endif()
+
+if(UNIX)
+  add_compile_definitions(SYSCONFDIR="../${CONF_FOLDER_NAME}/")
 endif()
 
 if(BUILD_GAME_SERVER OR BUILD_LOGIN_SERVER OR BUILD_EXTRACTORS)

@@ -27,13 +27,13 @@ EndScriptData */
 
 enum
 {
-    SAY_AGGRO_1 = -1546000,
-    SAY_AGGRO_2 = -1546001,
-    SAY_AGGRO_3 = -1546002,
-    SAY_COMMAND = -1546003,
-    SAY_SLAY_1  = -1546004,
-    SAY_SLAY_2  = -1546005,
-    SAY_DEATH   = -1546006,
+    SAY_AGGRO_1 = 17506,
+    SAY_AGGRO_2 = 17505,
+    SAY_AGGRO_3 = 17507,
+    SAY_COMMAND = 17511,
+    SAY_SLAY_1  = 17508,
+    SAY_SLAY_2  = 17509,
+    SAY_DEATH   = 17510,
     
     // SWAMPLORD
     SPELL_KNOCK_AWAY           = 18813,
@@ -67,14 +67,14 @@ enum MuselekActions
     MUSELEK_ACTION_MAX,
 };
 
-struct boss_swamplord_muselekAI : public RangedCombatAI
+struct boss_swamplord_muselekAI : public CombatAI
 {
-    boss_swamplord_muselekAI(Creature* creature) : RangedCombatAI(creature, MUSELEK_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData())),
+    boss_swamplord_muselekAI(Creature* creature) : CombatAI(creature, MUSELEK_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData())),
         m_isRegularMode(creature->GetMap()->IsRegularDifficulty())
     {
         AddTimerlessCombatAction(MUSELEK_TRAP_ONE, true);
         AddTimerlessCombatAction(MUSELEK_TRAP_TWO, true);
-        AddTimerlessCombatAction(MUSELEK_AIMED_SHOT, true);
+        AddTimerlessCombatAction(MUSELEK_AIMED_SHOT, false);
         AddCombatAction(MUSELEK_ACTION_KNOCK_AWAY, 25000, 30000);
         AddCombatAction(MUSELEK_ACTION_RAPTOR_STRIKE, 1500, 4000);
         AddCombatAction(MUSELEK_ACTION_BEAR_COMMAND, 8000, 12000);
@@ -83,6 +83,7 @@ struct boss_swamplord_muselekAI : public RangedCombatAI
         SetRangedMode(true, 30.f, TYPE_PROXIMITY);
         AddMainSpell(SPELL_SHOOT);
         AddMainSpell(SPELL_MULTI_SHOT);
+        AddOnKillText(SAY_SLAY_1, SAY_SLAY_2);
     }
 
     ScriptedInstance* m_instance;
@@ -156,28 +157,8 @@ struct boss_swamplord_muselekAI : public RangedCombatAI
             }
             case MUSELEK_ACTION_BEAR_COMMAND:
             {
-                if (Creature* claw = m_instance->GetSingleCreatureFromStorage(NPC_CLAW))
-                    if (claw->IsAlive() && claw->GetEntry() != NPC_CLAW_DRUID_FORM)
-                    {
-                        uint8 claw_spell = urand(0, 2);
-
-                        switch (claw_spell)
-                        {
-                            case 0:
-                                claw->AI()->DoCastSpellIfCan(claw, SPELL_MAUL);
-                                break;
-                            case 1:
-                                claw->AI()->DoCastSpellIfCan(claw, SPELL_ROAR);
-                                break;
-                            default:
-                                break;
-                        }
-
-                        claw->AI()->DoCastSpellIfCan(claw, SPELL_FRENZY);
-                        DoScriptText(SAY_COMMAND, m_creature);
-                    }
-
-                ResetCombatAction(action, GetSubsequentActionTimer(action));
+                if (DoCastSpellIfCan(nullptr, SPELL_BEAR_COMMAND) == CAST_OK)
+                    ResetCombatAction(action, GetSubsequentActionTimer(action));
                 return;
             }
             case MUSELEK_ACTION_RANGED_ATTACK:
@@ -185,7 +166,7 @@ struct boss_swamplord_muselekAI : public RangedCombatAI
                 if (!GetCurrentRangedMode())
                     return;
 
-                uint32 RangedSpell = urand(0, 2) ? SPELL_SHOOT : SPELL_MULTI_SHOT; // 66% shoot, 33% multishot
+                uint32 RangedSpell = urand(0, 4) ? SPELL_SHOOT : SPELL_MULTI_SHOT; // 66% shoot, 33% multishot
                 if (DoCastSpellIfCan(m_creature->GetVictim(), RangedSpell) == CAST_OK)
                     ResetCombatAction(action, GetSubsequentActionTimer(action));
                 return;
@@ -198,17 +179,12 @@ struct boss_swamplord_muselekAI : public RangedCombatAI
             }
         }
     }
-
-    void DistancingStarted()
-    {
-        SetCombatScriptStatus(true);
-    }
     
     void DistancingEnded() override
     {
-        RangedCombatAI::DistancingEnded();
+        CombatAI::DistancingEnded();
         ResetCombatAction(MUSELEK_ACTION_RANGED_ATTACK, GetSubsequentActionTimer(MUSELEK_ACTION_RANGED_ATTACK));
-        SetActionReadyStatus(MUSELEK_AIMED_SHOT, false);
+        SetActionReadyStatus(MUSELEK_AIMED_SHOT, false); // currently never used due to not being interrupted when the target is in his melee range (oneshotting everything)
     }
 
     void SpellHitTarget(Unit* target, const SpellEntry* spell) override 
@@ -225,13 +201,13 @@ struct boss_swamplord_muselekAI : public RangedCombatAI
         switch (yell)
         {
             case 0:
-                DoScriptText(SAY_AGGRO_1, m_creature);
+                DoBroadcastText(SAY_AGGRO_1, m_creature);
                 break;
             case 1:
-                DoScriptText(SAY_AGGRO_2, m_creature);
+                DoBroadcastText(SAY_AGGRO_2, m_creature);
                 break;
             case 2:
-                DoScriptText(SAY_AGGRO_3, m_creature);
+                DoBroadcastText(SAY_AGGRO_3, m_creature);
                 break;
         }	
     }
@@ -240,7 +216,7 @@ struct boss_swamplord_muselekAI : public RangedCombatAI
     {
         if (Creature* claw = m_instance->GetSingleCreatureFromStorage(NPC_CLAW))
             m_creature->CastSpell(claw, SPELL_NOTIFY_OF_DEATH, TRIGGERED_NONE); // TODO: what does this do?
-        DoScriptText(SAY_DEATH, m_creature);
+        DoBroadcastText(SAY_DEATH, m_creature);
     }
 
     void JustReachedHome() override 
@@ -252,13 +228,33 @@ struct boss_swamplord_muselekAI : public RangedCombatAI
                 claw->Respawn();
             }
     }
+};
 
-    void KilledUnit(Unit* /*victim*/) override 
+// 34662 - Bear Command
+struct BearCommand : public SpellScript
+{
+    void OnEffectExecute(Spell* spell, SpellEffectIndex /*effIdx*/) const override
     {
-        if (urand(0, 1))
-            DoScriptText(SAY_SLAY_1, m_creature);
-        else
-            DoScriptText(SAY_SLAY_2, m_creature);
+        Unit* claw = spell->GetUnitTarget();
+        if (claw && claw->IsAlive() && claw->GetEntry() != NPC_CLAW_DRUID_FORM)
+        {
+            uint8 claw_spell = urand(0, 2);
+
+            switch (claw_spell)
+            {
+                case 0:
+                    claw->AI()->DoCastSpellIfCan(claw, SPELL_MAUL);
+                    break;
+                case 1:
+                    claw->AI()->DoCastSpellIfCan(claw, SPELL_ROAR);
+                    break;
+                default:
+                    break;
+            }
+
+            claw->AI()->DoCastSpellIfCan(claw, SPELL_FRENZY);
+            DoBroadcastText(SAY_COMMAND, spell->GetCaster());
+        }
     }
 };
 
@@ -268,4 +264,6 @@ void AddSC_boss_swamplord_muselek()
     pNewScript->Name = "boss_swamplord_muselek";
     pNewScript->GetAI = &GetNewAIInstance<boss_swamplord_muselekAI>;
     pNewScript->RegisterSelf();
+
+    RegisterSpellScript<BearCommand>("spell_bear_command");
 }

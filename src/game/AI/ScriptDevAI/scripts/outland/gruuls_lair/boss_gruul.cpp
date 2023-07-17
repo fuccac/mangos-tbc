@@ -32,9 +32,9 @@ enum
     SAY_SLAM2                   = -1565012,
     SAY_SHATTER1                = -1565013,
     SAY_SHATTER2                = -1565014,
-    SAY_SLAY1                   = -1565015,
-    SAY_SLAY2                   = -1565016,
-    SAY_SLAY3                   = -1565017,
+    SAY_SLAY1                   = 20121,
+    SAY_SLAY2                   = 20122,
+    SAY_SLAY3                   = 20123,
     SAY_DEATH                   = -1565018,
 
     EMOTE_GROW                  = -1565019,
@@ -74,6 +74,7 @@ struct boss_gruulAI : public CombatAI
         AddCombatAction(GRUUL_ACTION_REVERBERATION, 115000u);
         AddCombatAction(GRUUL_ACTION_GROUND_SLAM, 35000, 40000);
         AddCombatAction(GRUUL_ACTION_HURTFUL_STRIKE, 6000u);
+        AddOnKillText(SAY_SLAY1, SAY_SLAY2, SAY_SLAY3);
     }
 
     ScriptedInstance* m_instance;
@@ -99,16 +100,6 @@ struct boss_gruulAI : public CombatAI
     {
         if (m_instance)
             m_instance->SetData(TYPE_GRUUL_EVENT, FAIL);
-    }
-
-    void KilledUnit(Unit* /*victim*/) override
-    {
-        switch (urand(0, 2))
-        {
-            case 0: DoScriptText(SAY_SLAY1, m_creature); break;
-            case 1: DoScriptText(SAY_SLAY2, m_creature); break;
-            case 2: DoScriptText(SAY_SLAY3, m_creature); break;
-        }
     }
 
     void JustDied(Unit* /*pKiller*/) override
@@ -200,6 +191,36 @@ struct GronnLordsGrasp : public AuraScript
     }
 };
 
+struct HurtfulStrikePrimer : public SpellScript
+{
+    bool OnCheckTarget(const Spell* spell, Unit* target, SpellEffectIndex /*eff*/) const override
+    {
+        if (target->GetTypeId() != TYPEID_PLAYER || !spell->GetCaster()->CanReachWithMeleeAttack(target))
+            return false;
+        return true;
+    }
+
+    void OnEffectExecute(Spell* spell, SpellEffectIndex /*effIdx*/) const override
+    {
+        Unit* target = spell->GetUnitTarget();
+        Unit* caster = spell->GetCaster();
+        auto& targetInfo = spell->GetTargetList();
+        if (!target || targetInfo.rbegin()->targetGUID != target->GetObjectGuid())
+            return;
+
+        for (auto& targetInfo : targetInfo)
+        {
+            if (caster->GetMap()->GetPlayer(targetInfo.targetGUID) == caster->GetVictim())
+                continue;
+
+            if (caster->getThreatManager().getThreat(caster->GetMap()->GetPlayer(targetInfo.targetGUID)) > caster->getThreatManager().getThreat(target) || target == caster->GetVictim())
+                target = caster->GetMap()->GetPlayer(targetInfo.targetGUID);
+        }
+
+        caster->CastSpell(target, 33813, TRIGGERED_IGNORE_GCD | TRIGGERED_IGNORE_CURRENT_CASTED_SPELL | TRIGGERED_NORMAL_COMBAT_CAST);
+    }
+};
+
 void AddSC_boss_gruul()
 {
     Script* pNewScript = new Script;
@@ -207,5 +228,6 @@ void AddSC_boss_gruul()
     pNewScript->GetAI = &GetNewAIInstance<boss_gruulAI>;
     pNewScript->RegisterSelf();
 
-    RegisterAuraScript<GronnLordsGrasp>("spell_gronn_lords_grasp");
+    RegisterSpellScript<GronnLordsGrasp>("spell_gronn_lords_grasp");
+    RegisterSpellScript<HurtfulStrikePrimer>("spell_hurtful_strike_primer");
 }

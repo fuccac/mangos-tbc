@@ -17,7 +17,7 @@
  */
 
 #include "OutdoorPvPEP.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "World/World.h"
 #include "Globals/ObjectMgr.h"
 #include "Entities/Object.h"
@@ -38,7 +38,7 @@ OutdoorPvPEP::OutdoorPvPEP() : OutdoorPvP(),
         i = TEAM_NONE;
 
     // initially set graveyard owner to neither faction
-    sObjectMgr.SetGraveYardLinkTeam(GRAVEYARD_ID_EASTERN_PLAGUE, GRAVEYARD_ZONE_EASTERN_PLAGUE, TEAM_INVALID);
+    SetGraveYardLinkTeam(GRAVEYARD_ID_EASTERN_PLAGUE, GRAVEYARD_ZONE_EASTERN_PLAGUE, TEAM_INVALID, 0);
 }
 
 void OutdoorPvPEP::FillInitialWorldStates(WorldPacket& data, uint32& count)
@@ -181,8 +181,12 @@ void OutdoorPvPEP::HandleObjectiveComplete(uint32 eventId, const PlayerList& pla
 }
 
 // process the capture events
-bool OutdoorPvPEP::HandleEvent(uint32 eventId, GameObject* go, Unit* /*invoker*/)
+bool OutdoorPvPEP::HandleEvent(uint32 eventId, Object* source, Object* /*target*/)
 {
+    if (!source->IsGameObject())
+        return false;
+
+    GameObject* go = static_cast<GameObject*>(source);
     for (uint8 i = 0; i < MAX_EP_TOWERS; ++i)
     {
         if (plaguelandsBanners[i] == go->GetEntry())
@@ -282,7 +286,7 @@ bool OutdoorPvPEP::ProcessCaptureEvent(GameObject* go, uint32 towerId, Team team
                 RespawnGO(go, team == ALLIANCE ? m_lordaeronShrineAlliance : m_lordaeronShrineHorde, true);
                 break;
             case TOWER_ID_CROWNGUARD:
-                sObjectMgr.SetGraveYardLinkTeam(GRAVEYARD_ID_EASTERN_PLAGUE, GRAVEYARD_ZONE_EASTERN_PLAGUE, team);
+                SetGraveYardLinkTeam(GRAVEYARD_ID_EASTERN_PLAGUE, GRAVEYARD_ZONE_EASTERN_PLAGUE, team, 0);
                 break;
             case TOWER_ID_EASTWALL:
                 // Return false - allow the DB to handle summons
@@ -304,7 +308,7 @@ bool OutdoorPvPEP::ProcessCaptureEvent(GameObject* go, uint32 towerId, Team team
                 RespawnGO(go, m_towerOwner[TOWER_ID_NORTHPASS] == ALLIANCE ? m_lordaeronShrineAlliance : m_lordaeronShrineHorde, false);
                 break;
             case TOWER_ID_CROWNGUARD:
-                sObjectMgr.SetGraveYardLinkTeam(GRAVEYARD_ID_EASTERN_PLAGUE, GRAVEYARD_ZONE_EASTERN_PLAGUE, TEAM_INVALID);
+                SetGraveYardLinkTeam(GRAVEYARD_ID_EASTERN_PLAGUE, GRAVEYARD_ZONE_EASTERN_PLAGUE, TEAM_INVALID, 0);
                 break;
             case TOWER_ID_EASTWALL:
                 UnsummonSoldiers(go);

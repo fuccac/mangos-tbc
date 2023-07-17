@@ -20,7 +20,7 @@
 #include "Database/DatabaseEnv.h"
 #include "Server/SQLStorages.h"
 #include "Server/DBCStores.h"
-#include "ProgressBar.h"
+#include "Util/ProgressBar.h"
 
 #include "Accounts/AccountMgr.h"
 #include "Entities/Item.h"
@@ -30,7 +30,7 @@
 #include "Entities/ObjectGuid.h"
 #include "Entities/Player.h"
 #include "World/World.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Mails/Mail.h"
 
@@ -519,7 +519,7 @@ AuctionHouseEntry const* AuctionHouseMgr::GetAuctionHouseEntry(Unit* unit)
             // FIXME: found way for proper auctionhouse selection by another way
             // AuctionHouse.dbc have faction field with _player_ factions associated with auction house races.
             // but no easy way convert creature faction to player race faction for specific city
-            uint32 factionTemplateId = unit->getFaction();
+            uint32 factionTemplateId = unit->GetFaction();
             switch (factionTemplateId)
             {
                 case   12: houseid = 1; break;              // human

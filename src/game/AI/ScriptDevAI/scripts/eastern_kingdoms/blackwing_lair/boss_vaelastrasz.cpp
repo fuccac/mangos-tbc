@@ -168,7 +168,7 @@ struct boss_vaelastraszAI : public CombatAI
         if (summoned->GetEntry() == NPC_LORD_VICTOR_NEFARIUS)
         {
             // Set not selectable, so players won't interact with it
-            summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
             m_nefariusGuid = summoned->GetObjectGuid();
         }
     }
@@ -365,11 +365,6 @@ bool QuestAccept_boss_vaelastrasz(Player* pPlayer, Creature* /*creature*/, const
     return true;
 }
 
-UnitAI* GetAI_boss_vaelastrasz(Creature* creature)
-{
-    return new boss_vaelastraszAI(creature);
-}
-
 bool AreaTrigger_at_vaelastrasz(Player* pPlayer, AreaTriggerEntry const* pAt)
 {
     if (pAt->id == AREATRIGGER_VAEL_INTRO)
@@ -396,7 +391,7 @@ void AddSC_boss_vaelastrasz()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_vaelastrasz";
-    pNewScript->GetAI = &GetAI_boss_vaelastrasz;
+    pNewScript->GetAI = &GetNewAIInstance<boss_vaelastraszAI>;
     pNewScript->pGossipHello = &GossipHello_boss_vaelastrasz;
     pNewScript->pGossipSelect = &GossipSelect_boss_vaelastrasz;
     pNewScript->pQuestAcceptNPC = &QuestAccept_boss_vaelastrasz;

@@ -17,7 +17,7 @@
  */
 
 #include "OutdoorPvPHP.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "World/World.h"
 #include "Entities/Object.h"
 #include "Entities/Creature.h"
@@ -153,7 +153,7 @@ void OutdoorPvPHP::HandlePlayerKillInsideArea(Player* player)
             GameObjectInfo const* info = capturePoint->GetGOInfo();
             if (info && player->IsWithinDistInMap(capturePoint, info->capturePoint.radius))
             {
-                player->CastSpell(player, player->GetTeam() == ALLIANCE ? SPELL_HELLFIRE_TOWER_TOKEN_ALLIANCE : SPELL_HELLFIRE_TOWER_TOKEN_HORDE, TRIGGERED_OLD_TRIGGERED);
+                player->CastSpell(nullptr, player->GetTeam() == ALLIANCE ? SPELL_HELLFIRE_TOWER_TOKEN_ALLIANCE : SPELL_HELLFIRE_TOWER_TOKEN_HORDE, TRIGGERED_OLD_TRIGGERED);
                 return;
             }
         }
@@ -161,8 +161,12 @@ void OutdoorPvPHP::HandlePlayerKillInsideArea(Player* player)
 }
 
 // process the capture events
-bool OutdoorPvPHP::HandleEvent(uint32 eventId, GameObject* go, Unit* /*invoker*/)
+bool OutdoorPvPHP::HandleEvent(uint32 eventId, Object* source, Object* /*target*/)
 {
+    if (!source->IsGameObject())
+        return false;
+
+    GameObject* go = static_cast<GameObject*>(source);
     for (uint8 i = 0; i < MAX_HP_TOWERS; ++i)
     {
         if (hellfireBanners[i] == go->GetEntry())

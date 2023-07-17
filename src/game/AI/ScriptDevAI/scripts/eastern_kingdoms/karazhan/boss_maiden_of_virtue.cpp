@@ -28,9 +28,9 @@ EndScriptData */
 enum
 {
     SAY_AGGRO               = -1532018,
-    SAY_SLAY1               = -1532019,
-    SAY_SLAY2               = -1532020,
-    SAY_SLAY3               = -1532021,
+    SAY_SLAY1               = 15082,
+    SAY_SLAY2               = 15083,
+    SAY_SLAY3               = 15084,
     SAY_REPENTANCE1         = -1532022,
     SAY_REPENTANCE2         = -1532023,
     SAY_DEATH               = -1532024,
@@ -62,6 +62,8 @@ struct boss_maiden_of_virtueAI : public CombatAI
         {
             return y > -2071.f && x > -10924.f;
         });
+
+        AddOnKillText(SAY_SLAY1, SAY_SLAY2, SAY_SLAY3);
     }
 
     ScriptedInstance* m_instance;
@@ -111,16 +113,6 @@ struct boss_maiden_of_virtueAI : public CombatAI
                     ResetCombatAction(action, GetSubsequentActionTimer(action));
                 return;
             }
-        }
-    }
-
-    void KilledUnit(Unit* /*victim*/) override
-    {
-        switch (urand(0, 5)) // 50% chance to say something out of 3 texts
-        {
-            case 0: DoScriptText(SAY_SLAY1, m_creature); break;
-            case 1: DoScriptText(SAY_SLAY2, m_creature); break;
-            case 2: DoScriptText(SAY_SLAY3, m_creature); break;
         }
     }
 

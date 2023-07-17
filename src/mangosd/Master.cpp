@@ -20,21 +20,17 @@
     \ingroup mangosd
 */
 
-#ifndef _WIN32
-#include "PosixDaemon.h"
-#endif
-
 #include "Common.h"
 #include "Master.h"
 #include "Server/WorldSocket.h"
 #include "WorldRunnable.h"
 #include "World/World.h"
 #include "Log.h"
-#include "Timer.h"
+#include "Util/Timer.h"
 #include "SystemConfig.h"
 #include "CliRunnable.h"
 #include "RASocket.h"
-#include "Util.h"
+#include "Util/Util.h"
 #include "revision_sql.h"
 #include "MaNGOSsoap.h"
 #include "Mails/MassMailMgr.h"
@@ -49,8 +45,10 @@
 #include <memory>
 
 #ifdef _WIN32
-#include "ServiceWin32.h"
+#include "Platform/ServiceWin32.h"
 extern int m_ServiceStatus;
+#else
+#include "Platform/PosixDaemon.h"
 #endif
 
 INSTANTIATE_SINGLETON_1(Master);
@@ -133,6 +131,7 @@ int Master::Run()
     CharacterDatabase.AllowAsyncTransactions();
     WorldDatabase.AllowAsyncTransactions();
     LoginDatabase.AllowAsyncTransactions();
+    LogsDatabase.AllowAsyncTransactions();
 
     ///- Catch termination signals
     _HookSignals();
@@ -218,7 +217,7 @@ int Master::Run()
         int32 networkThreadWorker = sConfig.GetIntDefault("Network.Threads", 1);
         if (networkThreadWorker <= 0)
         {
-            sLog.outError("Invalid network tread workers setting in mangosd.conf. (%d) should be > 0", networkThreadWorker);
+            sLog.outError("Invalid network thread workers setting in mangosd.conf. (%d) should be > 0", networkThreadWorker);
             networkThreadWorker = 1;
         }
         MaNGOS::Listener<WorldSocket> listener(sConfig.GetStringDefault("BindIP", "0.0.0.0"), int32(sWorld.getConfig(CONFIG_UINT32_PORT_WORLD)), networkThreadWorker);
@@ -234,6 +233,8 @@ int Master::Run()
         // wait for shut down and then let things go out of scope to close them down
         while (!World::IsStopped())
             std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        world_thread.wait();
     }
 
     ///- Stop freeze protection before shutdown tasks
@@ -263,50 +264,30 @@ int Master::Run()
     CharacterDatabase.HaltDelayThread();
     WorldDatabase.HaltDelayThread();
     LoginDatabase.HaltDelayThread();
+    LogsDatabase.HaltDelayThread();
 
     sLog.outString("Halting process...");
 
     if (cliThread)
     {
 #ifdef _WIN32
-
-        // this only way to terminate CLI thread exist at Win32 (alt. way exist only in Windows Vista API)
-        //_exit(1);
-        // send keyboard input to safely unblock the CLI thread
-        INPUT_RECORD b[5];
+        // send keyboard input to safely unblock the CLI thread that is waiting for an user input
         HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
-        b[0].EventType = KEY_EVENT;
-        b[0].Event.KeyEvent.bKeyDown = TRUE;
-        b[0].Event.KeyEvent.uChar.AsciiChar = 'X';
-        b[0].Event.KeyEvent.wVirtualKeyCode = 'X';
-        b[0].Event.KeyEvent.wRepeatCount = 1;
+        INPUT_RECORD ir[2] = { 0 };
 
-        b[1].EventType = KEY_EVENT;
-        b[1].Event.KeyEvent.bKeyDown = FALSE;
-        b[1].Event.KeyEvent.uChar.AsciiChar = 'X';
-        b[1].Event.KeyEvent.wVirtualKeyCode = 'X';
-        b[1].Event.KeyEvent.wRepeatCount = 1;
+        ir[0].EventType = KEY_EVENT;
+        ir[0].Event.KeyEvent.bKeyDown = TRUE;
+        ir[0].Event.KeyEvent.wRepeatCount = 1;
+        ir[0].Event.KeyEvent.uChar.AsciiChar = VK_RETURN;
+        ir[0].Event.KeyEvent.dwControlKeyState = 0;
 
-        b[2].EventType = KEY_EVENT;
-        b[2].Event.KeyEvent.bKeyDown = TRUE;
-        b[2].Event.KeyEvent.dwControlKeyState = 0;
-        b[2].Event.KeyEvent.uChar.AsciiChar = '\r';
-        b[2].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
-        b[2].Event.KeyEvent.wRepeatCount = 1;
-        b[2].Event.KeyEvent.wVirtualScanCode = 0x1c;
+        ir[1] = ir[0];
+        ir[1].Event.KeyEvent.bKeyDown = FALSE;
 
-        b[3].EventType = KEY_EVENT;
-        b[3].Event.KeyEvent.bKeyDown = FALSE;
-        b[3].Event.KeyEvent.dwControlKeyState = 0;
-        b[3].Event.KeyEvent.uChar.AsciiChar = '\r';
-        b[3].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
-        b[3].Event.KeyEvent.wVirtualScanCode = 0x1c;
-        b[3].Event.KeyEvent.wRepeatCount = 1;
-        DWORD numb;
-        BOOL ret = WriteConsoleInput(hStdIn, b, 4, &numb);
+        DWORD dwNumWrtn = -1;
+        WriteConsoleInput(hStdIn, ir, 2, &dwNumWrtn);
 
         cliThread->wait();
-
 #else
 
         cliThread->destroy();
@@ -406,6 +387,42 @@ bool Master::_StartDB()
     }
 
     if (!LoginDatabase.CheckRequiredField("realmd_db_version", REVISION_DB_REALMD))
+    {
+        ///- Wait for already started DB delay threads to end
+        WorldDatabase.HaltDelayThread();
+        CharacterDatabase.HaltDelayThread();
+        LoginDatabase.HaltDelayThread();
+        return false;
+    }
+
+    ///- Get logs database info from configuration file
+    dbstring = sConfig.GetStringDefault("LogsDatabaseInfo", "");
+    nConnections = sConfig.GetIntDefault("LogsDatabaseConnections", 1);
+    if (dbstring.empty())
+    {
+        sLog.outError("logs database not specified in configuration file");
+
+        ///- Wait for already started DB delay threads to end
+        WorldDatabase.HaltDelayThread();
+        CharacterDatabase.HaltDelayThread();
+        LoginDatabase.HaltDelayThread();
+        return false;
+    }
+
+    ///- Initialise the logs database
+    sLog.outString("Logs Database total connections: %i", nConnections + 1);
+    if (!LogsDatabase.Initialize(dbstring.c_str(), nConnections))
+    {
+        sLog.outError("Cannot connect to logs database %s", dbstring.c_str());
+
+        ///- Wait for already started DB delay threads to end
+        WorldDatabase.HaltDelayThread();
+        CharacterDatabase.HaltDelayThread();
+        LoginDatabase.HaltDelayThread();
+        return false;
+    }
+
+    if (!LogsDatabase.CheckRequiredField("logs_db_version", REVISION_DB_LOGS))
     {
         ///- Wait for already started DB delay threads to end
         WorldDatabase.HaltDelayThread();

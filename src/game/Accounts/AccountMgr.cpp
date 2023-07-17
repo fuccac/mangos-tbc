@@ -22,9 +22,9 @@
 #include "Entities/ObjectGuid.h"
 #include "Entities/Player.h"
 #include "Policies/Singleton.h"
-#include "Util.h"
-#include "Auth/Sha1.h"
-#include "SRP6/SRP6.h"
+#include "Util/Util.h"
+#include "Auth/CryptoHash.h"
+#include "Auth/SRP6.h"
 
 extern DatabaseType LoginDatabase;
 
@@ -327,4 +327,13 @@ std::string AccountMgr::CalculateShaPassHash(std::string& name, std::string& pas
     hexEncodeByteArray(sha.GetDigest(), Sha1Hash::GetLength(), encoded);
 
     return encoded;
+}
+
+uint32 AccountMgr::GetFlags(uint32 acc_id) const
+{
+    std::unique_ptr<QueryResult> result(LoginDatabase.PQuery("SELECT flags FROM account WHERE id = '%u'", acc_id));
+    if (result)
+        return (*result)[0].GetInt32();
+
+    return 0;
 }

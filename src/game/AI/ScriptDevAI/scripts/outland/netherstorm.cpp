@@ -1476,7 +1476,7 @@ struct npc_zeppitAI : public ScriptedPetAI
             if (m_creature->IsWithinDistInMap(pVictim, 10.0f))
             {
                 DoScriptText(EMOTE_GATHER_BLOOD, m_creature);
-                m_creature->CastSpell(m_creature, SPELL_GATHER_WARP_BLOOD, TRIGGERED_NONE);
+                m_creature->CastSpell(nullptr, SPELL_GATHER_WARP_BLOOD, TRIGGERED_NONE);
             }
         }
     }
@@ -2204,7 +2204,7 @@ struct npc_saeed_escortAI : public npc_escortAI
                             {
                                 DoScriptText(EMOTE_DIMENSIUS_LAUGH, dimensius, m_creature);
                                 dimensius->SetDisplayId(dimensius->GetNativeDisplayId());
-                                dimensius->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                                dimensius->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                             }
 
                             m_uiEventTimer = 3000;
@@ -2366,7 +2366,7 @@ struct npc_dimensiusAI : public Scripted_NoMovementAI
         m_bSpawnsFeeding = false;
 
         m_creature->SetDisplayId(MODEL_ID_DIMENSIUS_CLOUD);
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PLAYER);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PLAYER);
     }
 
     void Aggro(Unit* /*pWho*/) override
@@ -2795,7 +2795,7 @@ struct npc_scrap_reaverAI : ScriptedPetAI
         }
         m_dontDoAnything = true;
         m_creature->SetStandState(UNIT_STAND_STATE_DEAD);
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
         if (m_negatron)
             if (Creature* negatron = m_creature->GetMap()->GetCreature(m_negatron))
                 DoScriptText(SAY_ON_DEATH, m_creature, negatron);
@@ -2929,7 +2929,7 @@ struct npc_scrap_reaverAI : ScriptedPetAI
 
 struct ScrapReaverSpell : public SpellScript, public AuraScript
 {
-    bool OnCheckTarget(const Spell* spell, Unit* target, SpellEffectIndex /*eff*/) const
+    bool OnCheckTarget(const Spell* /*spell*/, Unit* target, SpellEffectIndex /*eff*/) const
     {
         // Only one player can control the scrap reaver
         if (target->HasAura(SPELL_SCRAP_REAVER))
@@ -3956,7 +3956,7 @@ bool GossipHello_npc_adyen_the_lightwarden(Player* player, Creature* creature)
     uint32 gossipId = GOSSIP_NETHERSTORM;
 
     // custom code required because it utilizes two entries
-    if (creature->getFaction() == FACTION_SHATTRATH)
+    if (creature->GetFaction() == FACTION_SHATTRATH)
         gossipId = GOSSIP_SHATTRATH;
     else
     {
@@ -4027,6 +4027,16 @@ struct ThrowBoomsDoom : public SpellScript
         if (target->GetEntry() != NPC_BOOM && target->GetEntry() != NPC_BOOM_BOT)
             return false;
         return true;
+    }
+};
+
+struct RingOfFlame : public AuraScript
+{
+    void OnApply(Aura* aura, bool apply) const override
+    {
+        if (!apply && aura->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE)
+
+            aura->GetTarget()->CastSpell(nullptr, 35995, TRIGGERED_OLD_TRIGGERED); // Immolation
     }
 };
 
@@ -4104,11 +4114,6 @@ void AddSC_netherstorm()
     pNewScript->RegisterSelf();
 
     pNewScript = new Script;
-    pNewScript->Name = "npc_manaforge_spawn";
-    pNewScript->GetAI = &GetAI_npc_manaforge_spawnAI;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
     pNewScript->Name = "npc_salhadaar";
     pNewScript->GetAI = &GetAI_npc_salhadaar;
     pNewScript->RegisterSelf();
@@ -4151,7 +4156,8 @@ void AddSC_netherstorm()
     pNewScript->RegisterSelf();
 
     RegisterSpellScript<Soulbind>("spell_soulbind");
+    RegisterSpellScript<RingOfFlame>("spell_ring_of_flame");
     RegisterSpellScript<UltraDeconsolodationZapper>("spell_ultra_deconsolodation_zapper");
     RegisterSpellScript<ThrowBoomsDoom>("spell_throw_booms_doom");
-    RegisterScript<ScrapReaverSpell>("spell_scrap_reaver_spell");
+    RegisterSpellScript<ScrapReaverSpell>("spell_scrap_reaver_spell");
 }

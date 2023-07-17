@@ -186,7 +186,7 @@ struct boss_kelidan_the_breakerAI : public CombatAI
                 caster->AI()->SendAIEvent(AI_EVENT_CUSTOM_A, target, caster);
         }
 
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
         m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
     }
 
@@ -211,7 +211,7 @@ struct boss_kelidan_the_breakerAI : public CombatAI
         ++m_uiKilledAdds;
         if (m_uiKilledAdds == MAX_ADDS)
         {
-            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
             m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
             m_creature->InterruptNonMeleeSpells(true);
             AttackStart(killer);
@@ -239,7 +239,7 @@ struct boss_kelidan_the_breakerAI : public CombatAI
                 }
                 break;
             case KELIDAN_SHADOW_BOLT_VOLLEY:
-                if (DoCastSpellIfCan(nullptr, m_isRegularMode ? SPELL_SHADOW_BOLT_VOLLEY : SPELL_SHADOW_BOLT_VOLLEY_H) == CAST_OK)
+                if (DoCastSpellIfCan(m_creature->GetVictim(), m_isRegularMode ? SPELL_SHADOW_BOLT_VOLLEY : SPELL_SHADOW_BOLT_VOLLEY_H) == CAST_OK)
                     ResetCombatAction(action, urand(5000, 13000));
                 break;
             case KELIDAN_CORRUPTION:

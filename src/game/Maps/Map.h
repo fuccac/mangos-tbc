@@ -35,6 +35,10 @@
 #include "Entities/CreatureLinkingMgr.h"
 #include "vmap/DynamicTree.h"
 #include "Multithreading/Messager.h"
+#include "Globals/GraveyardManager.h"
+#include "Maps/SpawnManager.h"
+#include "Maps/MapDataContainer.h"
+#include "World/WorldStateVariableManager.h"
 
 #include <bitset>
 #include <functional>
@@ -90,6 +94,18 @@ enum LevelRequirementVsMode
     LEVELREQUIREMENT_HEROIC = 70
 };
 
+struct ZoneDynamicInfo
+{
+    ZoneDynamicInfo() : musicId(0), weatherId(0), weatherGrade(0.0f),
+        overrideLightId(0), lightFadeInTime(0) { }
+
+    uint32 musicId;
+    uint32 weatherId;
+    float  weatherGrade;
+    uint32 overrideLightId;
+    uint32 lightFadeInTime;
+};
+
 #if defined( __GNUC__ )
 #pragma pack()
 #else
@@ -97,6 +113,8 @@ enum LevelRequirementVsMode
 #endif
 
 #define MIN_UNLOAD_DELAY      1                             // immediate unload
+
+typedef std::unordered_map<uint32 /*zoneId*/, ZoneDynamicInfo> ZoneDynamicInfoMap;
 
 class Map : public GridRefManager<NGridType>
 {
@@ -210,6 +228,7 @@ class Map : public GridRefManager<NGridType>
         bool IsBattleGroundOrArena() const { return i_mapEntry && i_mapEntry->IsBattleGroundOrArena(); }
         bool IsContinent() const { return i_mapEntry && i_mapEntry->IsContinent(); }
         bool IsMountAllowed() const;
+        bool IsDynguidForced() const;
 
         // can't be nullptr for loaded map
         MapPersistentState* GetPersistentState() const { return m_persistentState; }
@@ -242,7 +261,7 @@ class Map : public GridRefManager<NGridType>
             SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET        = 0x02,   // Start Script only if not yet started (uniqueness identified by id and target)
             SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET = 0x03,   // Start Script only if not yet started (uniqueness identified by id, source and target)
         };
-        bool ScriptsStart(ScriptMapMapName const& scripts, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams = SCRIPT_EXEC_PARAM_NONE);
+        bool ScriptsStart(ScriptMapType scriptType, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams = SCRIPT_EXEC_PARAM_NONE);
         void ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* source, Object* target);
 
         // must called with AddToWorld
@@ -265,6 +284,21 @@ class Map : public GridRefManager<NGridType>
         Corpse* GetCorpse(ObjectGuid guid) const;                 // !!! find corpse can be not in world
         Unit* GetUnit(ObjectGuid guid);                     // only use if sure that need objects at current map, specially for player case
         WorldObject* GetWorldObject(ObjectGuid guid);       // only use if sure that need objects at current map, specially for player case
+        // dbguid methods
+        Creature* GetCreature(uint32 dbguid) const;
+        GameObject* GetGameObject(uint32 dbguid) const;
+        std::vector<WorldObject*> const* GetWorldObjects(std::string stringId) const;
+        std::vector<Creature*> const* GetCreatures(std::string stringId) const;
+        std::vector<GameObject*> const* GetGameObjects(std::string stringId) const;
+        std::vector<WorldObject*> const* GetWorldObjects(uint32 stringId) const;
+        std::vector<Creature*> const* GetCreatures(uint32 stringId) const;
+        std::vector<GameObject*> const* GetGameObjects(uint32 stringId) const;
+
+        void AddDbGuidObject(WorldObject* obj);
+        void RemoveDbGuidObject(WorldObject* obj);
+
+        void AddStringIdObject(uint32 stringId, WorldObject* obj);
+        void RemoveStringIdObject(uint32 stringId, WorldObject* obj);
 
         typedef TypeUnorderedMapContainer<AllMapStoredObjectTypes, ObjectGuid> MapStoredObjectTypesContainer;
         MapStoredObjectTypesContainer& GetObjectsStore() { return m_objectsStore; }
@@ -335,6 +369,13 @@ class Map : public GridRefManager<NGridType>
         uint32 GetCurrentMSTime() const;
         TimePoint GetCurrentClockTime() const;
         uint32 GetCurrentDiff() const;
+        time_t GetCurrentTime_t() const;
+        tm GetCurrentTime_tm() const;
+
+        void SetZoneMusic(uint32 zoneId, uint32 areaId, uint32 musicId);
+        void SetZoneWeather(uint32 zoneId, uint32 areaId, uint32 weatherId, float weatherGrade);
+        void SetZoneOverrideLight(uint32 zoneId, uint32 areaId, uint32 lightId, uint32 fadeInTime);
+        void SendZoneDynamicInfo(Player* player, bool zoneUpdated, bool areaUpdated) const;
 
         void CreatePlayerOnClient(Player* player);
 
@@ -342,12 +383,26 @@ class Map : public GridRefManager<NGridType>
 
         Messager<Map>& GetMessager() { return m_messager; }
 
+        typedef std::set<Transport*> TransportSet;
         GenericTransport* GetTransport(ObjectGuid guid);
+        TransportSet const& GetTransports() { return m_transports; }
+
+        GraveyardManager& GetGraveyardManager() { return m_graveyardManager; }
 
         void AddTransport(Transport* transport);
         void RemoveTransport(Transport* transport);
 
         bool CanSpawn(TypeID typeId, uint32 dbGuid);
+
+        SpawnManager& GetSpawnManager() { return m_spawnManager; }
+
+        MapDataContainer& GetMapDataContainer() { return m_dataContainer; }
+        MapDataContainer const& GetMapDataContainer() const { return m_dataContainer; }
+        WorldStateVariableManager& GetVariableManager() { return m_variableManager; }
+        WorldStateVariableManager const& GetVariableManager() const { return m_variableManager; }
+
+        // debug
+        std::set<ObjectGuid> m_objRemoveList; // this will eventually eat up too much memory - only used for debugging VisibleNotifier::Notify() customlog leak
 
     private:
         void LoadMapAndVMap(int gx, int gy);
@@ -403,13 +458,18 @@ class Map : public GridRefManager<NGridType>
         MapStoredObjectTypesContainer m_objectsStore;
         std::map<uint32, uint32> m_tempCreatures;
         std::map<uint32, uint32> m_tempPets;
+        std::map<std::pair<HighGuid, uint32>, std::vector<WorldObject*>> m_dbGuidObjects;
 
         WorldObjectSet m_onEventNotifiedObjects;
         WorldObjectSet::iterator m_onEventNotifiedIter;
 
         Messager<Map> m_messager;
+
+        GraveyardManager m_graveyardManager;
     private:
         time_t i_gridExpiry;
+        time_t m_curTime;
+        tm m_curTimeTm;
 
         NGridType* i_grids[MAX_NUMBER_OF_GRIDS][MAX_NUMBER_OF_GRIDS];
 
@@ -450,11 +510,31 @@ class Map : public GridRefManager<NGridType>
         WeatherSystem* m_weatherSystem;
 
         // Transports
-        typedef std::set<Transport*> TransportSet;
         TransportSet m_transports;
         TransportSet::iterator m_transportsIterator;
 
         std::unordered_map<uint32, std::set<ObjectGuid>> m_spawnedCount;
+
+        // spawning
+        SpawnManager m_spawnManager;
+
+        struct StringIdMapStorage
+        {
+            std::vector<WorldObject*> worldObjects;
+            std::vector<Creature*> creatures;
+            std::vector<GameObject*> gameobjects;
+        };
+
+        std::unordered_map<uint32, StringIdMapStorage> m_objectsPerStringId;
+
+        MapDataContainer m_dataContainer;
+        std::shared_ptr<CreatureSpellListContainer> m_spellListContainer;
+
+        WorldStateVariableManager m_variableManager;
+
+        ZoneDynamicInfoMap m_zoneDynamicInfo;
+        ZoneDynamicInfoMap m_areaDynamicInfo;
+        uint32 m_defaultLight;
 };
 
 class WorldMap : public Map
@@ -480,7 +560,7 @@ class DungeonMap : public Map
         void Remove(Player*, bool) override;
         void Update(const uint32&) override;
         bool Reset(InstanceResetMethod method);
-        void PermBindAllPlayers(Player* player);
+        void PermBindAllPlayers(Player* player = nullptr);
         void UnloadAll(bool pForce) override;
         void SendResetWarnings(uint32 timeLeft) const;
         void SetResetSchedule(bool on);
@@ -502,7 +582,7 @@ class BattleGroundMap : public Map
     private:
         using Map::GetPersistentState;                      // hide in subclass for overwrite
     public:
-        BattleGroundMap(uint32 id, time_t, uint32 InstanceId);
+        BattleGroundMap(uint32 id, time_t, uint32 InstanceId, uint8 spawnMode);
         ~BattleGroundMap();
 
         virtual void Initialize(bool) override;

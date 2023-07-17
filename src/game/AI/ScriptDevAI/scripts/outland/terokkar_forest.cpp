@@ -826,19 +826,25 @@ struct npc_skywingAI : public npc_escortAI
             case 60:
                 DoScriptText(SAY_SKYWING_JUMP, m_creature);
                 m_creature->SetLevitate(true);
+                m_creature->SetCanFly(true);
+                m_creature->SetIgnoreMMAP(true);
+                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                 break;
-            case 61:
+            case 63:
+                m_creature->SetIgnoreMMAP(false);
                 m_creature->SetLevitate(false);
+                m_creature->SetCanFly(false);
+                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SPAWNING);
                 break;
-            case 80:
+            case 82:
                 DoScriptText(SAY_SKYWING_SUMMON, m_creature);
                 m_creature->SummonCreature(NPC_LUANGA_THE_IMPRISONER, aLuangaSpawnCoords[0], aLuangaSpawnCoords[1], aLuangaSpawnCoords[2], 0, TEMPSPAWN_TIMED_OOC_DESPAWN, 30000);
                 break;
-            case 81:
+            case 83:
                 // Start transformation
                 m_uiCycloneTimer = 100;
                 break;
-            case 82:
+            case 84:
                 DoScriptText(SAY_SKYWING_END, m_creature);
 
                 if (Player* pPlayer = GetPlayerForEscort())
@@ -1033,6 +1039,7 @@ struct npc_skyguard_prisonerAI : public npc_escortAI
         }
         DoCastSpellIfCan(m_creature, SPELL_CAGE_SUMMON);
         m_creature->SetActiveObjectState(false);
+        m_creature->SetImmuneToNPC(true); // hack, cage should break los and prevent any interaction with npcs outside the cage befor the escort is started
     }
 
     void ReceiveAIEvent(AIEventType eventType, Unit* /*pSender*/, Unit* pInvoker, uint32 uiMiscValue) override
@@ -1040,17 +1047,18 @@ struct npc_skyguard_prisonerAI : public npc_escortAI
         if (eventType == AI_EVENT_START_ESCORT && pInvoker->GetTypeId() == TYPEID_PLAYER)
         {
             m_creature->SetFactionTemporary(FACTION_ESCORT_N_NEUTRAL_ACTIVE, TEMPFACTION_RESTORE_RESPAWN);
+            m_creature->SetImmuneToNPC(false); // hack, cage should break los and prevent any interaction with npcs outside the cage befor the escort is started
 
             Start(false, (Player*)pInvoker, GetQuestTemplateStore(uiMiscValue));
 
             SetEscortPaused(true);
 
-            if (m_creature->GetPositionZ() < 310.0f)
-                SetCurrentWaypoint(19);
-            else if (m_creature->GetPositionZ() < 330.0f)
-                SetCurrentWaypoint(33);
-            else
-                SetCurrentWaypoint(0);
+            if (m_creature->GetPositionZ() < 310.0f)        // -3720.35, 3789.91, 302.888
+                SetCurrentWaypoint(20);
+            else if (m_creature->GetPositionZ() < 320.0f)   // -3669.57, 3386.74, 312.955
+                SetCurrentWaypoint(34);
+            else if (m_creature->GetPositionZ() < 350.0f)   // -4106.64, 3029.76, 344.877
+                SetCurrentWaypoint(1);
 
             SetEscortPaused(false);
 
@@ -1302,7 +1310,7 @@ struct npc_draenei_tomb_guardian : public ScriptedAI
         //m_creature->RemoveGuardians();
 
         // Despawn Bone Wastes - Orb Waypoint 01, Bone Wastes - Event Trigger B, Nether Cloud
-        m_creature->GetMap()->ScriptsStart(sRelayScripts, DBSCRIPT_EVENT_RESET, m_creature, m_creature);
+        m_creature->GetMap()->ScriptsStart(SCRIPT_TYPE_RELAY, DBSCRIPT_EVENT_RESET, m_creature, m_creature);
 
         // Despawn Vengeful Harbinger and Vengeful Draenei
         for (ObjectGuid &guid : summons)
@@ -1343,7 +1351,7 @@ struct npc_draenei_tomb_guardian : public ScriptedAI
         if (uiMovementType == POINT_MOTION_TYPE && uiData == POINT_HARBINGER_POSITION && harbinger)
         {
             m_creature->CastSpell(harbinger, SPELL_COSMETIC_CHAIN_LIGHTNING, TRIGGERED_OLD_TRIGGERED);
-            m_creature->GetMap()->ScriptsStart(sRelayScripts, DBSCRIPT_TOMB_GUARDIAN, m_creature, m_creature);
+            m_creature->GetMap()->ScriptsStart(SCRIPT_TYPE_RELAY, DBSCRIPT_TOMB_GUARDIAN, m_creature, m_creature);
         }
     }
 };
@@ -1383,7 +1391,7 @@ struct npc_vengeful_harbinger : public ScriptedAI
     void Reset() override
     {
         eventResetTimer = EVENT_RESET_TIMER;
-        m_creature->GetCombatManager().SetLeashingCheck([&](Unit*, float x, float y, float z)
+        m_creature->GetCombatManager().SetLeashingCheck([&](Unit*, float /*x*/, float y, float /*z*/)
         {
             return y > 4428.f;
         });
@@ -1483,7 +1491,7 @@ struct npc_vengeful_harbinger : public ScriptedAI
         m_creature->ClearAllReactives();
         m_creature->GetMotionMaster()->Clear(false, true);
         m_creature->GetMotionMaster()->MoveIdle();
-        m_creature->GetMap()->ScriptsStart(sRelayScripts, DBSCRIPT_VENGEFUL_HARBINGER_FAKE_DEATH, m_creature, m_creature);
+        m_creature->GetMap()->ScriptsStart(SCRIPT_TYPE_RELAY, DBSCRIPT_VENGEFUL_HARBINGER_FAKE_DEATH, m_creature, m_creature);
     }
 };
 
@@ -1491,6 +1499,36 @@ UnitAI* GetAI_npc_vengeful_harbinger(Creature* pCreature)
 {
     return new npc_vengeful_harbinger(pCreature);
 }
+
+/*######
+## go_monstrous_kaliri_egg
+######*/
+
+struct go_monstrous_kaliri_egg : public GameObjectAI
+{
+    go_monstrous_kaliri_egg(GameObject* go) : GameObjectAI(go) {}
+
+    void OnLootStateChange(Unit* /*user*/) override
+    {
+        if (m_go->GetLootState() == GO_ACTIVATED)
+            m_go->SetForcedDespawn();
+    }
+};
+
+GameObjectAI* GetAI_go_monstrous_kaliri_egg(GameObject* go)
+{
+    return new go_monstrous_kaliri_egg(go);
+}
+
+struct ShadowyDisguise : public AuraScript
+{
+    void OnApply(Aura* aura, bool apply) const override
+    {
+        Unit* target = aura->GetTarget();
+        if (!apply)
+            target->RemoveAurasDueToSpell(target->getGender() == GENDER_MALE ? 38080 : 38081);
+    }
+};
 
 void AddSC_terokkar_forest()
 {
@@ -1563,4 +1601,11 @@ void AddSC_terokkar_forest()
     pNewScript->Name = "npc_vengeful_harbinger";
     pNewScript->GetAI = &GetAI_npc_vengeful_harbinger;
     pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
+    pNewScript->Name = "go_monstrous_kaliri_egg";
+    pNewScript->GetGameObjectAI = &GetAI_go_monstrous_kaliri_egg;
+    pNewScript->RegisterSelf();
+
+    RegisterSpellScript<ShadowyDisguise>("spell_shadowy_disguise");
 }

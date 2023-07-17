@@ -100,6 +100,11 @@ enum
     SPELL_SOUL_CHARGE_RED_CHARGE    = 32052,
 
     SPELL_CHOOSE_TARGET_UNUSED      = 32121, // Currently unused. Unknown what its purpose is, but it's cast by Druid of the Claw c.3795
+
+    // Used for Building creature (Base Invasion/Overrun events)
+    SPELL_SUPER_INVIS           = 8149,
+    FACTION_SPAR                = 1692,
+    FACTION_SPAR_BUDDY          = 1693,
 };
 
 enum BaseArea
@@ -180,13 +185,11 @@ class instance_mount_hyjal : public ScriptedInstance
         const char* Save() const override { return m_saveData.c_str(); }
         void Load(const char* chrIn) override;
 
-        void FillInitialWorldStates(ByteBuffer& /*data*/, uint32& /*count*/, uint32 /*zoneId*/, uint32 /*areaId*/) override;
-        void DoUpdateWorldState(uint32 stateId, uint32 stateData) override;
-
         void Update(const uint32 diff) override;
 
         void StartEvent(HyjalEvents eventId);
         void FailEvent();
+        GuidVector GetOverrunSpawns(uint32 baseId) { return m_overrunSpawns[baseId]; }
 
         void ShowChatCommands(ChatHandler* handler) override;
         void ExecuteChatCommand(ChatHandler* handler, char* args) override;
@@ -221,11 +224,8 @@ class instance_mount_hyjal : public ScriptedInstance
 
         GuidVector m_additionalSpawns;
 
-        uint32 m_hyjalOverheadEnable;
-        uint32 m_hyjalEnemyCount;
         uint32 m_hyjalWaves; // Script value
         uint32 m_invasionWaves;
-        uint32 m_hyjalWavesWorldstate; // Worldstate value
 
         uint32 m_nextWaveTimer;
         uint32 m_nextInvasionWaveTimer;

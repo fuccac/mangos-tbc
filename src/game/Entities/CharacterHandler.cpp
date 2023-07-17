@@ -18,7 +18,7 @@
 
 #include "Common.h"
 #include "Database/DatabaseEnv.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "Globals/SharedDefines.h"
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
@@ -29,16 +29,16 @@
 #include "Guilds/Guild.h"
 #include "Guilds/GuildMgr.h"
 #include "UpdateMask.h"
-#include "Auth/md5.h"
 #include "Globals/ObjectAccessor.h"
 #include "Groups/Group.h"
 #include "Database/DatabaseImpl.h"
 #include "Tools/PlayerDump.h"
 #include "Social/SocialMgr.h"
 #include "GMTickets/GMTicketMgr.h"
-#include "Util.h"
+#include "Util/Util.h"
 #include "Tools/Language.h"
 #include "AI/ScriptDevAI/ScriptDevAIMgr.h"
+#include "Anticheat/Anticheat.hpp"
 
 #ifdef BUILD_PLAYERBOT
 #include "PlayerBot/Base/PlayerbotMgr.h"
@@ -77,7 +77,7 @@ bool LoginQueryHolder::Initialize()
                      "position_x, position_y, position_z, map, orientation, taximask, cinematic, totaltime, leveltime, rest_bonus, logout_time, is_logout_resting, resettalents_cost,"
                      "resettalents_time, trans_x, trans_y, trans_z, trans_o, transguid, extra_flags, stable_slots, at_login, zone, online, death_expire_time, taxi_path, dungeon_difficulty,"
                      "arenaPoints, totalHonorPoints, todayHonorPoints, yesterdayHonorPoints, totalKills, todayKills, yesterdayKills, chosenTitle, watchedFaction, drunk,"
-                     "health, power1, power2, power3, power4, power5, exploredZones, equipmentCache, ammoId, knownTitles, actionBars FROM characters WHERE guid = '%u'", m_guid.GetCounter());
+                     "health, power1, power2, power3, power4, power5, exploredZones, equipmentCache, ammoId, knownTitles, actionBars, grantableLevels, fishingSteps FROM characters WHERE guid = '%u'", m_guid.GetCounter());
     res &= SetPQuery(PLAYER_LOGIN_QUERY_LOADGROUP,           "SELECT groupId FROM group_member WHERE memberGuid ='%u'", m_guid.GetCounter());
     res &= SetPQuery(PLAYER_LOGIN_QUERY_LOADBOUNDINSTANCES,  "SELECT id, permanent, map, difficulty, resettime FROM character_instance LEFT JOIN instance ON instance = id WHERE guid = '%u'", m_guid.GetCounter());
     res &= SetPQuery(PLAYER_LOGIN_QUERY_LOADAURAS,           "SELECT caster_guid,item_guid,spell,stackcount,remaincharges,basepoints0,basepoints1,basepoints2,periodictime0,periodictime1,periodictime2,maxduration,remaintime,effIndexMask FROM character_aura WHERE guid = '%u'", m_guid.GetCounter());
@@ -115,8 +115,13 @@ class CharacterHandler
     public:
         void HandleCharEnumCallback(QueryResult* result, uint32 account)
         {
-            if (WorldSession* session = sWorld.FindSession(account))
-                session->HandleCharEnum(result);
+            WorldSession* session = sWorld.FindSession(account);
+            if (!session)
+            {
+                delete result;
+                return;
+            }
+            session->HandleCharEnum(result);
         }
 
         void HandlePlayerLoginCallback(QueryResult* /*dummy*/, SqlQueryHolder* holder)
@@ -147,7 +152,8 @@ class CharacterHandler
 
             // The bot's WorldSession is owned by the bot's Player object
             // The bot's WorldSession is deleted by PlayerbotMgr::LogoutPlayerBot
-            WorldSession* botSession = new WorldSession(lqh->GetAccountId(), nullptr, SEC_PLAYER, masterSession->GetExpansion(), 0, DEFAULT_LOCALE);
+            WorldSession* botSession = new WorldSession(lqh->GetAccountId(), nullptr, SEC_PLAYER, masterSession->GetExpansion(), 0, DEFAULT_LOCALE, masterSession->GetAccountName(), 0, masterSession->GetRecruitingFriendId(), false);
+            botSession->SetNoAnticheat();
             botSession->HandlePlayerLogin(lqh); // will delete lqh
             masterSession->GetPlayer()->GetPlayerbotMgr()->OnBotLogin(botSession->GetPlayer());
         }
@@ -178,7 +184,7 @@ void WorldSession::HandleCharEnum(QueryResult* result)
 
     data.put<uint8>(0, num);
 
-    SendPacket(data, true);
+    m_anticheat->SendCharEnum(std::move(data));
 }
 
 void WorldSession::HandleCharEnumOpcode(WorldPacket& /*recv_data*/)
@@ -597,7 +603,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         return;
     }
 
-    m_currentPlayerLevel = pCurrChar->getLevel();
+    m_currentPlayerLevel = pCurrChar->GetLevel();
 
     pCurrChar->GetMotionMaster()->Initialize();
 
@@ -626,7 +632,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     // load player specific part before send times
     LoadAccountData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADACCOUNTDATA), PER_CHARACTER_CACHE_MASK);
-    SendAccountDataTimes(PER_CHARACTER_CACHE_MASK);
+    SendAccountDataTimes();
 
     data.Initialize(SMSG_FEATURE_SYSTEM_STATUS, 2);         // added in 2.2.0
     data << uint8(2);                                       // Can complain (0 = disabled, 1 = enabled, don't auto ignore, 2 = enabled, auto ignore)
@@ -747,6 +753,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     // GM ticket notifications
     sTicketMgr.OnPlayerOnlineState(*pCurrChar, true);
 
+    // Send LFG update on login
+    _player->GetSession()->SendLFGUpdate();
+
     // Place character in world (and load zone) before some object loading
     pCurrChar->LoadCorpse();
 
@@ -837,6 +846,10 @@ void WorldSession::HandlePlayerReconnect()
     // stop logout timer if need
     LogoutRequest(0);
 
+    // if DC during cinematic - just stop it
+    if (_player->getCinematic() != 0)
+        _player->StopCinematic();
+
     // silently kick from chat channels player lists to allow reconnect correctly
     _player->CleanupChannels();
 
@@ -844,11 +857,17 @@ void WorldSession::HandlePlayerReconnect()
     m_playerLoading = true;
 
     // reset all visible objects to be able to resend them
+    for (auto guid : _player->m_clientGUIDs)
+    {
+        if (WorldObject* object = _player->GetMap()->GetWorldObject(guid))
+            object->RemoveClientIAmAt(_player);
+    }
     _player->m_clientGUIDs.clear();
 
     m_initialZoneUpdated = false;
 
     SetOnline();
+    m_anticheat->NewPlayer();
 
     Group* group = _player->GetGroup();
 
@@ -862,10 +881,7 @@ void WorldSession::HandlePlayerReconnect()
     data << _player->GetOrientation();
     SendPacket(data);
 
-    data.Initialize(SMSG_ACCOUNT_DATA_TIMES, 128);
-    for (int i = 0; i < 32; ++i)
-        data << uint32(0);
-    SendPacket(data);
+    SendAccountDataTimes();
 
     data.Initialize(SMSG_FEATURE_SYSTEM_STATUS, 2);         // added in 2.2.0
     data << uint8(2);                                       // Can complain (0 = disabled, 1 = enabled, don't auto ignore, 2 = enabled, auto ignore)
@@ -930,8 +946,11 @@ void WorldSession::HandlePlayerReconnect()
     sTicketMgr.OnPlayerOnlineState(*_player, true);
 
     // Send current LFG preferences on reconnect
-    _player->GetSession()->SendLFGUpdateLFM();
     _player->GetSession()->SendLFGUpdateLFG();
+    _player->GetSession()->SendLFGUpdateLFM();
+
+    // Send LFG update on login
+    _player->GetSession()->SendLFGUpdate();
 
     // show time before shutdown if shutdown planned.
     if (sWorld.IsShutdowning())

@@ -55,7 +55,7 @@ class OutdoorPvP
         virtual void FillInitialWorldStates(WorldPacket& /*data*/, uint32& /*count*/) {}
 
         // Process Capture event
-        virtual bool HandleEvent(uint32 /*eventId*/, GameObject* /*go*/, Unit* /*invoker*/) { return false; }
+        virtual bool HandleEvent(uint32 /*eventId*/, Object* /*source*/, Object* /*target*/) { return false; }
 
         // handle capture objective complete
         virtual void HandleObjectiveComplete(uint32 /*eventId*/, const PlayerList& /*players*/, Team /*team*/) {}
@@ -90,6 +90,8 @@ class OutdoorPvP
 
         // Handle script condition state change by an external factor
         virtual void HandleConditionStateChange(uint32 /*conditionId*/, bool /*state*/) {}
+
+        void SetGraveYardLinkTeam(uint32 id, uint32 locKey, Team team, uint32 mapId);
 
     protected:
 

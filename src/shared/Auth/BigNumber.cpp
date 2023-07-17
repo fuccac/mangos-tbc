@@ -75,25 +75,25 @@ void BigNumber::SetRand(int numbits)
     BN_rand(_bn, numbits, 0, 1);
 }
 
-BigNumber BigNumber::operator=(const BigNumber& bn)
+BigNumber& BigNumber::operator=(const BigNumber& bn)
 {
     BN_copy(_bn, bn._bn);
     return *this;
 }
 
-BigNumber BigNumber::operator+=(const BigNumber& bn)
+BigNumber& BigNumber::operator+=(const BigNumber& bn)
 {
     BN_add(_bn, _bn, bn._bn);
     return *this;
 }
 
-BigNumber BigNumber::operator-=(const BigNumber& bn)
+BigNumber& BigNumber::operator-=(const BigNumber& bn)
 {
     BN_sub(_bn, _bn, bn._bn);
     return *this;
 }
 
-BigNumber BigNumber::operator*=(const BigNumber& bn)
+BigNumber& BigNumber::operator*=(const BigNumber& bn)
 {
     BN_CTX* bnctx = BN_CTX_new();
     BN_mul(_bn, _bn, bn._bn, bnctx);
@@ -102,7 +102,7 @@ BigNumber BigNumber::operator*=(const BigNumber& bn)
     return *this;
 }
 
-BigNumber BigNumber::operator/=(const BigNumber& bn)
+BigNumber& BigNumber::operator/=(const BigNumber& bn)
 {
     BN_CTX* bnctx = BN_CTX_new();
     BN_div(_bn, nullptr, _bn, bn._bn, bnctx);
@@ -111,7 +111,7 @@ BigNumber BigNumber::operator/=(const BigNumber& bn)
     return *this;
 }
 
-BigNumber BigNumber::operator%=(const BigNumber& bn)
+BigNumber& BigNumber::operator%=(const BigNumber& bn)
 {
     BN_CTX* bnctx = BN_CTX_new();
     BN_mod(_bn, _bn, bn._bn, bnctx);
@@ -157,25 +157,25 @@ bool BigNumber::isZero() const
     return BN_is_zero(_bn) != 0;
 }
 
-uint8* BigNumber::AsByteArray(int minSize)
+std::vector<uint8> BigNumber::AsByteArray(int minSize, bool reverse) const
 {
     int length = (minSize >= GetNumBytes()) ? minSize : GetNumBytes();
 
-    delete[] _array;
-    _array = new uint8[length];
+    std::vector<uint8> byteArray(length);
 
     // If we need more bytes than length of BigNumber set the rest to 0
     if (length > GetNumBytes())
-        memset((void*)_array, 0, length);
+        memset((void*)byteArray.data(), 0, length);
 
     // Padding should add leading zeroes, not trailing
-    int paddingOffset = length - GetNumBytes();
+    auto const paddingOffset = length - GetNumBytes();
 
-    BN_bn2bin(_bn, (unsigned char*)_array + paddingOffset);
+    BN_bn2bin(_bn, (unsigned char*)byteArray.data() + paddingOffset);
 
-    std::reverse(_array, _array + length);
+    if (reverse)
+        std::reverse(byteArray.begin(), byteArray.end());
 
-    return _array;
+    return byteArray;
 }
 
 const char* BigNumber::AsHexStr() const

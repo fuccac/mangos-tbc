@@ -35,8 +35,9 @@ struct SpellTargetInfo
     SpellTargetImplicitType type;
     SpellTargetFilter filter;
     SpellTargetEnumerator enumerator;
+    SpellTargetLOS los;
 
-    SpellTargetInfo(char const* name = "", SpellTargetImplicitType type = TARGET_TYPE_UNKNOWN, SpellTargetFilter filter = TARGET_NEUTRAL, SpellTargetEnumerator enumerator = TARGET_ENUMERATOR_UNKNOWN);
+    SpellTargetInfo(char const* name = "", SpellTargetImplicitType type = TARGET_TYPE_UNKNOWN, SpellTargetFilter filter = TARGET_NEUTRAL, SpellTargetEnumerator enumerator = TARGET_ENUMERATOR_UNKNOWN, SpellTargetLOS los = TARGET_LOS_CASTER);
 };
 
 extern SpellTargetInfo SpellTargetInfoTable[MAX_SPELL_TARGETS];
@@ -55,6 +56,7 @@ class SpellTargetMgr // thread safe
         static void Initialize(); // precalculates ignored targets and dynamic effect targeting
         static SpellTargetingData& GetSpellTargetingData(uint32 spellId);
         static bool CanEffectBeFilledWithMask(uint32 spellId, uint32 effIdx, uint32 mask);
+        static bool CanEffectConsumeTarget(SpellTargetImplicitType targetType, SpellTargetImplicitType effectTargetType);
 
         // temporary helpers
         static float GetJumpRadius(uint32 spellId);

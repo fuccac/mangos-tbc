@@ -20,6 +20,7 @@
 #define _AUTH_BIGNUMBER_H
 
 #include "Common.h"
+#include <vector>
 
 struct bignum_st;
 
@@ -38,33 +39,33 @@ class BigNumber
 
         void SetRand(int numbits);
 
-        BigNumber operator=(const BigNumber& bn);
+        BigNumber& operator=(const BigNumber& bn);
 
-        BigNumber operator+=(const BigNumber& bn);
+        BigNumber& operator+=(const BigNumber& bn);
         BigNumber operator+(const BigNumber& bn)
         {
             BigNumber t(*this);
             return t += bn;
         }
-        BigNumber operator-=(const BigNumber& bn);
+        BigNumber& operator-=(const BigNumber& bn);
         BigNumber operator-(const BigNumber& bn)
         {
             BigNumber t(*this);
             return t -= bn;
         }
-        BigNumber operator*=(const BigNumber& bn);
+        BigNumber& operator*=(const BigNumber& bn);
         BigNumber operator*(const BigNumber& bn)
         {
             BigNumber t(*this);
             return t *= bn;
         }
-        BigNumber operator/=(const BigNumber& bn);
+        BigNumber& operator/=(const BigNumber& bn);
         BigNumber operator/(const BigNumber& bn)
         {
             BigNumber t(*this);
             return t /= bn;
         }
-        BigNumber operator%=(const BigNumber& bn);
+        BigNumber& operator%=(const BigNumber& bn);
         BigNumber operator%(const BigNumber& bn)
         {
             BigNumber t(*this);
@@ -81,7 +82,7 @@ class BigNumber
         struct bignum_st* BN() { return _bn; }
 
         uint32 AsDword() const;
-        uint8* AsByteArray(int minSize = 0);
+        std::vector<uint8> AsByteArray(int minSize = 0, bool reverse = true) const;
 
         const char* AsHexStr() const;
         const char* AsDecStr() const;

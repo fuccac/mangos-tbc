@@ -103,7 +103,7 @@ struct boss_leotheras_the_blindAI : public CombatAI
         AddCustomAction(LEOTHERAS_PHASE_TRANSITION, true, [&]() { HandlePhaseTransition(); });
         m_creature->GetCombatManager().SetLeashingCheck([&](Unit*, float x, float y, float /*z*/)
         {
-            return !(x > 298.0f && x < 411.0f && y > -526.0f &&  y < -299.0f);
+            return !(x > 290.0f && x < 411.0f && y > -526.0f &&  y < -299.0f);
         });
     }
 
@@ -122,7 +122,7 @@ struct boss_leotheras_the_blindAI : public CombatAI
 
         m_bDemonForm        = false;
 
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
         m_creature->SetStunned(false);
 
         SetCombatScriptStatus(false);
@@ -164,7 +164,7 @@ struct boss_leotheras_the_blindAI : public CombatAI
     {
         if (summoned->GetEntry() == NPC_SHADOW_LEO)
         {
-            summoned->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            summoned->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
             summoned->AI()->SetMoveChaseParams(35.f, 0.f, false);
             summoned->AI()->AttackStart(m_creature->GetVictim());
         }
@@ -235,7 +235,7 @@ struct boss_leotheras_the_blindAI : public CombatAI
                 SetReactState(REACT_AGGRESSIVE);
                 m_creature->CastSpell(m_creature, SPELL_SUMMON_SHADOW, TRIGGERED_OLD_TRIGGERED);
 
-                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                 m_creature->SetStandState(UNIT_STAND_STATE_STAND);
                 m_creature->SetStunned(false);
 
@@ -282,7 +282,7 @@ struct boss_leotheras_the_blindAI : public CombatAI
                     SetCombatScriptStatus(true);
                     SetMeleeEnabled(false);
                     m_creature->SetTarget(nullptr);
-                    m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                    m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                     m_creature->SetStunned(true);
                     // BUT DO NOT DO THIS ANYWHERE ELSE, its a purely dynamic flag
 
@@ -538,8 +538,8 @@ void AddSC_boss_leotheras_the_blind()
     pNewScript->GetAI = &GetNewAIInstance<npc_inner_demonAI>;
     pNewScript->RegisterSelf();
 
-    RegisterScript<InsidiousWhisper>("spell_insidious_whisper");
+    RegisterSpellScript<InsidiousWhisper>("spell_insidious_whisper");
     RegisterSpellScript<ClearConsumingMadness>("spell_clear_consuming_madness");
-    RegisterAuraScript<LeoWhirlwindAura>("spell_leotheras_whirlwind_aura");
+    RegisterSpellScript<LeoWhirlwindAura>("spell_leotheras_whirlwind_aura");
     RegisterSpellScript<LeoWhirlwindProc>("spell_leotheras_whirlwind_proc");
 }

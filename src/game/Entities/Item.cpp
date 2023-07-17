@@ -19,7 +19,7 @@
 #include "Entities/Item.h"
 #include "Globals/ObjectMgr.h"
 #include "Entities/ObjectGuid.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "Database/DatabaseEnv.h"
 #include "Entities/ItemEnchantmentMgr.h"
 #include "Server/SQLStorages.h"
@@ -42,33 +42,10 @@ void AddItemsSetItem(Player* player, Item* item)
     if (set->required_skill_id && player->GetSkillValue(set->required_skill_id) < set->required_skill_value)
         return;
 
-    ItemSetEffect* eff = nullptr;
-
-    for (auto& x : player->ItemSetEff)
-    {
-        if (x && x->setid == setid)
-        {
-            eff = x;
-            break;
-        }
-    }
+    ItemSetEffect* eff = player->GetItemSetEffect(setid);
 
     if (!eff)
-    {
-        eff = new ItemSetEffect;
-        memset(eff, 0, sizeof(ItemSetEffect));
-        eff->setid = setid;
-
-        size_t x = 0;
-        for (; x < player->ItemSetEff.size(); ++x)
-            if (!player->ItemSetEff[x])
-                break;
-
-        if (x < player->ItemSetEff.size())
-            player->ItemSetEff[x] = eff;
-        else
-            player->ItemSetEff.push_back(eff);
-    }
+        eff = player->AddItemSetEffect(setid);
 
     ++eff->item_count;
 
@@ -121,16 +98,7 @@ void RemoveItemsSetItem(Player* player, ItemPrototype const* proto)
         return;
     }
 
-    ItemSetEffect* eff = nullptr;
-    size_t setindex = 0;
-    for (; setindex < player->ItemSetEff.size(); ++setindex)
-    {
-        if (player->ItemSetEff[setindex] && player->ItemSetEff[setindex]->setid == setid)
-        {
-            eff = player->ItemSetEff[setindex];
-            break;
-        }
-    }
+    ItemSetEffect* eff = player->GetItemSetEffect(setid);
 
     // can be in case now enough skill requirement for set appling but set has been appliend when skill requirement not enough
     if (!eff)
@@ -160,11 +128,7 @@ void RemoveItemsSetItem(Player* player, ItemPrototype const* proto)
     }
 
     if (!eff->item_count)                                   // all items of a set were removed
-    {
-        MANGOS_ASSERT(eff == player->ItemSetEff[setindex]);
-        delete eff;
-        player->ItemSetEff[setindex] = nullptr;
-    }
+        player->RemoveItemSetEffect(setid);
 }
 
 bool ItemCanGoIntoBag(ItemPrototype const* pProto, ItemPrototype const* pBagProto)
@@ -243,6 +207,8 @@ Item::Item()
     mb_in_trade = false;
     m_lootState = ITEM_LOOT_NONE;
     m_enchantmentModifier = 0;
+
+    m_usedInSpell = false;
 }
 
 Item::~Item()
@@ -252,7 +218,7 @@ Item::~Item()
 
 bool Item::Create(uint32 guidlow, uint32 itemid, Player const* owner)
 {
-    Object::_Create(guidlow, 0, HIGHGUID_ITEM);
+    Object::_Create(guidlow, guidlow, 0, HIGHGUID_ITEM);
 
     SetEntry(itemid);
     SetObjectScale(DEFAULT_OBJECT_SCALE);
@@ -289,7 +255,8 @@ void Item::UpdateDuration(Player* owner, uint32 diff)
         return;
     }
 
-    SetUInt32Value(ITEM_FIELD_DURATION, GetUInt32Value(ITEM_FIELD_DURATION) - diff);
+    uint32 oldDuration = GetUInt32Value(ITEM_FIELD_DURATION);
+    SetUInt32Value(ITEM_FIELD_DURATION, oldDuration <= diff ? 1 : oldDuration - diff);
     SetState(ITEM_CHANGED, owner);                          // save new time in database
 }
 
@@ -456,7 +423,7 @@ bool Item::LoadFromDB(uint32 guidLow, Field* fields, ObjectGuid ownerGuid)
 
     // create item before any checks for store correct guid
     // and allow use "FSetState(ITEM_REMOVED); SaveToDB();" for deleting item from DB
-    Object::_Create(guidLow, 0, HIGHGUID_ITEM);
+    Object::_Create(guidLow, guidLow, 0, HIGHGUID_ITEM);
 
     // Set entry, MUST be before proto check
     SetEntry(fields[0].GetUInt32());
@@ -917,9 +884,27 @@ bool Item::IsBoundByEnchant() const
         if (!enchantEntry)
             continue;
 
-        if (enchantEntry->slot & ENCHANTMENT_CAN_SOULBOUND)
+        if (enchantEntry->flags & ENCHANTMENT_SOULBOUND)
             return true;
     }
+    return false;
+}
+
+bool Item::IsMainHandOnlyEnchant(EnchantmentSlot slot) const
+{
+    SpellItemEnchantmentEntry const* enchantEntry = sSpellItemEnchantmentStore.LookupEntry(GetEnchantmentId(slot));
+    if (enchantEntry && enchantEntry->flags & ENCHANTMENT_MAINHAND_ONLY)
+        return true;
+
+    return false;
+}
+
+bool Item::CanEnterArenaEnchant(EnchantmentSlot slot) const
+{
+    SpellItemEnchantmentEntry const* enchantEntry = sSpellItemEnchantmentStore.LookupEntry(GetEnchantmentId(slot));
+    if (enchantEntry && enchantEntry->flags & ENCHANTMENT_ALLOW_ENTERING_ARENA)
+        return true;
+
     return false;
 }
 
@@ -1012,6 +997,11 @@ void Item::ClearEnchantment(EnchantmentSlot slot)
 {
     if (!GetEnchantmentId(slot))
         return;
+
+    if (slot < MAX_INSPECTED_ENCHANTMENT_SLOT)
+        if (uint32 oldEnchant = GetEnchantmentId(slot))
+            if (Player* owner = GetOwner())
+                owner->SendEnchantmentLog(ObjectGuid(), GetEntry(), oldEnchant);
 
     for (uint8 x = 0; x < 3; ++x)
         SetUInt32Value(ITEM_FIELD_ENCHANTMENT_1_1 + slot * MAX_ENCHANTMENT_OFFSET + x, 0);

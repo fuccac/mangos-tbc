@@ -19,14 +19,15 @@
 #include "Loot/LootMgr.h"
 #include "Log.h"
 #include "Globals/ObjectMgr.h"
-#include "ProgressBar.h"
+#include "Util/ProgressBar.h"
 #include "World/World.h"
-#include "Util.h"
+#include "Util/Util.h"
 #include "Globals/SharedDefines.h"
 #include "Server/DBCStores.h"
 #include "Server/SQLStorages.h"
 #include "Entities/ItemEnchantmentMgr.h"
 #include "Tools/Language.h"
+#include "BattleGround/BattleGroundMgr.h"
 #include <sstream>
 #include <iomanip>
 
@@ -218,6 +219,40 @@ void LootStore::LoadAndCollectLootIds(LootIdSet& ids_set)
 
     for (LootTemplateMap::const_iterator tab = m_LootTemplates.begin(); tab != m_LootTemplates.end(); ++tab)
         ids_set.insert(tab->first);
+}
+
+void LootStore::LoadAndCheckReferenceNames()
+{
+    std::unique_ptr<QueryResult> result(WorldDatabase.Query("SELECT entry, name FROM `reference_loot_template_names`"));
+    if (result)
+    {
+        std::set<uint32> foundIds;
+        for (auto& data : m_LootTemplates)
+            foundIds.insert(data.first);
+
+        do
+        {
+            Field* fields = result->Fetch();
+
+            uint32 entry = fields[0].GetUInt32();
+            std::string name = fields[1].GetCppString();
+
+            if (name.empty())
+                sLog.outErrorDb("Table reference_loot_template_names for entry %u has empty name", entry);
+
+            if (foundIds.find(entry) != foundIds.end())
+                foundIds.erase(entry);
+            else
+            {
+                sLog.outErrorDb("Table reference_loot_template_names for entry %u has name but no entry", entry);
+                continue;
+            }
+        }
+        while (result->NextRow());
+
+        for (uint32 entry : foundIds)
+            sLog.outErrorDb("Table reference_loot_template has entry %u but no name", entry);
+    }
 }
 
 void LootStore::CheckLootRefs(LootIdSet* ref_set) const
@@ -421,9 +456,12 @@ bool LootItem::AllowedForPlayer(Player const* player, WorldObject const* lootTar
             break;
     }
 
-    // Not quest only drop (check quest starting items for already accepted non-repeatable quests)
-    if (player != masterLooter && itemProto->StartQuest && player->GetQuestStatus(itemProto->StartQuest) != QUEST_STATUS_NONE && !player->HasQuestForItem(itemId))
-        return false;
+    // If the item starts a quest and the player has that quest accepted/completed/rewarded, it can't be looted (unless the player is the master looter, or the item has ITEM_EXTRA_IGNORE_QUEST_STATUS)
+    if (itemProto->StartQuest)
+    {
+        if (!(itemProto->ExtraFlags & ITEM_EXTRA_IGNORE_QUEST_STATUS) && player != masterLooter && player->GetQuestStatus(itemProto->StartQuest) != QUEST_STATUS_NONE)
+            return false;
+    }
 
     return true;
 }
@@ -1666,8 +1704,8 @@ Loot::Loot(Player* player, Creature* creature, LootType type) :
             }
 
             // Generate extra money for pick pocket loot
-            const uint32 a = urand(0, creature->getLevel() / 2);
-            const uint32 b = urand(0, player->getLevel() / 2);
+            const uint32 a = urand(0, creature->GetLevel() / 2);
+            const uint32 b = urand(0, player->GetLevel() / 2);
             m_gold = uint32(10 * (a + b) * sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY));
 
             break;
@@ -1693,7 +1731,7 @@ Loot::Loot(Player* player, Creature* creature, LootType type) :
     return;
 }
 
-Loot::Loot(Player* player, GameObject* gameObject, LootType type) :
+Loot::Loot(Player* player, GameObject* gameObject, LootType type, bool lootSnapshot) :
     m_lootTarget(nullptr), m_itemTarget(nullptr), m_gold(0), m_maxSlot(0), m_lootType(type),
     m_clientLootType(CLIENT_LOOT_CORPSE), m_lootMethod(NOT_GROUP_TYPE_LOOT), m_threshold(ITEM_QUALITY_UNCOMMON), m_maxEnchantSkill(0), m_haveItemOverThreshold(false),
     m_isChecked(false), m_isChest(false), m_isChanged(false), m_isFakeLoot(false), m_createTime(World::GetCurrentClockTime())
@@ -1716,12 +1754,15 @@ Loot::Loot(Player* player, GameObject* gameObject, LootType type) :
 
     // not check distance for GO in case owned GO (fishing bobber case, for example)
     // And permit out of range GO with no owner in case fishing hole
-    if ((type != LOOT_FISHINGHOLE &&
+    if (!lootSnapshot) // ignores distance
+    {
+        if ((type != LOOT_FISHINGHOLE &&
             ((type != LOOT_FISHING && type != LOOT_FISHING_FAIL) || gameObject->GetOwnerGuid() != player->GetObjectGuid()) &&
             !gameObject->IsAtInteractDistance(player)))
-    {
-        sLog.outError("Loot::CreateLoot> cannot create game object loot, basic check failed for gameobject %u!", gameObject->GetEntry());
-        return;
+        {
+            sLog.outError("Loot::CreateLoot> cannot create game object loot, basic check failed for gameobject %u!", gameObject->GetEntry());
+            return;
+        }
     }
 
     // generate loot only if ready for open and spawned in world
@@ -1802,25 +1843,27 @@ Loot::Loot(Player* player, Corpse* corpse, LootType type) :
     m_lootTarget = corpse;
     m_guidTarget = corpse->GetObjectGuid();
 
-    if (type != LOOT_INSIGNIA || corpse->GetType() == CORPSE_BONES)
+    if (type != LOOT_INSIGNIA && corpse->GetType() == CORPSE_BONES)
         return;
+
+    MANGOS_ASSERT(player->GetBattleGround());
 
     if (!corpse->lootForBody)
     {
         corpse->lootForBody = true;
         uint32 pLevel;
-        if (Player* plr = sObjectAccessor.FindPlayer(corpse->GetOwnerGuid()))
-            pLevel = plr->getLevel();
+        Player* plr = sObjectAccessor.FindPlayer(corpse->GetOwnerGuid());
+        if (plr)
+            pLevel = plr->GetLevel();
         else
-            pLevel = player->getLevel(); // TODO:: not correct, need to save real player level in the corpse data in case of logout
+            pLevel = player->GetLevel(); // TODO:: not correct, need to save real player level in the corpse data in case of logout
 
-         m_ownerSet.insert(player->GetObjectGuid());
-         m_lootMethod = NOT_GROUP_TYPE_LOOT;
-         m_clientLootType = CLIENT_LOOT_CORPSE;
-
-        if (player->GetBattleGround()->GetTypeId() == BATTLEGROUND_AV)
-            FillLoot(0, LootTemplates_Creature, player, false);
-
+        m_ownerSet.insert(player->GetObjectGuid());
+        m_lootMethod = NOT_GROUP_TYPE_LOOT;
+        m_clientLootType = CLIENT_LOOT_CORPSE;
+        if (uint32 refLootId = player->GetBattleGround()->GetPlayerSkinRefLootId())
+            FillLoot(refLootId, LootTemplates_Reference, player, true);
+       
         // It may need a better formula
         // Now it works like this: lvl10: ~6copper, lvl70: ~9silver
         m_gold = (uint32)(urand(50, 150) * 0.016f * pow(((float)pLevel) / 5.76f, 2.5f) * sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY));
@@ -2841,11 +2884,14 @@ void LoadLootTemplates_Skinning()
     LootTemplates_Skinning.ReportUnusedIds(ids_set);
 }
 
-void LoadLootTemplates_Reference()
-{
-    LootIdSet ids_set;
+void LoadLootTemplates_Reference(LootIdSet& ids_set)
+{    
     LootTemplates_Reference.LoadAndCollectLootIds(ids_set);
+    LootTemplates_Reference.LoadAndCheckReferenceNames();
+}
 
+void CheckLootTemplates_Reference(LootIdSet& ids_set)
+{
     // check references and remove used
     LootTemplates_Creature.CheckLootRefs(&ids_set);
     LootTemplates_Fishing.CheckLootRefs(&ids_set);
@@ -2857,6 +2903,9 @@ void LoadLootTemplates_Reference()
     LootTemplates_Prospecting.CheckLootRefs(&ids_set);
     LootTemplates_Mail.CheckLootRefs(&ids_set);
     LootTemplates_Reference.CheckLootRefs(&ids_set);
+    auto& usedIds = sBattleGroundMgr.GetUsedRefLootIds();
+    for (uint32 refLootId : usedIds)
+        ids_set.erase(refLootId);
 
     // output error for any still listed ids (not referenced from any loot table)
     LootTemplates_Reference.ReportUnusedIds(ids_set);
@@ -3020,4 +3069,9 @@ void LootMgr::CheckDropStats(ChatHandler& chat, uint32 amountOfCheck, uint32 loo
         chat.PSendSysMessage(LANG_ITEM_LIST_CHAT, itemId, itemId, name.c_str(), ss.str().c_str());
         sLog.outString("%6u - %-45s \tfound %6u/%-6u \tso %8s%% drop", itemStat.first, name.c_str(), itemStat.second, amountOfCheck, ss.str().c_str());
     }
+}
+
+bool LootMgr::ExistsRefLootTemplate(uint32 refLootId) const
+{
+    return LootTemplates_Reference.HaveLootFor(refLootId);
 }

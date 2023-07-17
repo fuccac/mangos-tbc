@@ -16,6 +16,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "Platform/Define.h"
+
 #ifndef _UPDATEFIELDS_AUTO_H
 #define _UPDATEFIELDS_AUTO_H
 
@@ -381,7 +383,7 @@ enum EUnitFields
     PLAYER_FIELD_KILLS                        = UNIT_END + 0x0500, // Size: 1, Type: TWO_SHORT, Flags: PRIVATE
     PLAYER_FIELD_TODAY_CONTRIBUTION           = UNIT_END + 0x0501, // Size: 1, Type: INT, Flags: PRIVATE
     PLAYER_FIELD_YESTERDAY_CONTRIBUTION       = UNIT_END + 0x0502, // Size: 1, Type: INT, Flags: PRIVATE
-    PLAYER_FIELD_LIFETIME_HONORBALE_KILLS     = UNIT_END + 0x0503, // Size: 1, Type: INT, Flags: PRIVATE
+    PLAYER_FIELD_LIFETIME_HONORABLE_KILLS     = UNIT_END + 0x0503, // Size: 1, Type: INT, Flags: PRIVATE - CUSTOM: Fixed typo from PLAYER_FIELD_LIFETIME_HONORBALE_KILLS
     PLAYER_FIELD_BYTES2                       = UNIT_END + 0x0504, // Size: 1, Type: BYTES, Flags: PRIVATE
     PLAYER_FIELD_WATCHED_FACTION_INDEX        = UNIT_END + 0x0505, // Size: 1, Type: INT, Flags: PRIVATE
     PLAYER_FIELD_COMBAT_RATING_1              = UNIT_END + 0x0506, // Size: 24, Type: INT, Flags: PRIVATE
@@ -448,4 +450,50 @@ enum ECorpseFields
     CORPSE_FIELD_PAD                          = OBJECT_END + 0x0021, // Size: 1, Type: INT, Flags: NONE
     CORPSE_END                                = OBJECT_END + 0x0022,
 };
+
+enum UpdateFieldValueTypes
+{
+	UF_TYPE_NONE      = 0,
+	UF_TYPE_INT       = 1,
+	UF_TYPE_TWO_SHORT = 2,
+	UF_TYPE_FLOAT     = 3,
+	UF_TYPE_GUID      = 4,
+	UF_TYPE_BYTES     = 5,
+	UF_TYPE_BYTES2    = 6
+};
+
+enum UpdateFieldFlags : uint16
+{
+	UF_FLAG_NONE         = 0x000,   // not a real field
+	UF_FLAG_PUBLIC       = 0x001,   // visible to everyone
+	UF_FLAG_PRIVATE      = 0x002,   // only visible to self
+	UF_FLAG_OWNER_ONLY   = 0x004,   // only visible to owner
+	UF_FLAG_UNK1         = 0x008,   // meaning unknown, not used in vanilla
+	UF_FLAG_UNK2         = 0x010,   // meaning unknown, only seen on items together with OWNER_ONLY
+	UF_FLAG_SPECIAL_INFO = 0x020,   // only visible to caster of SPELL_AURA_EMPATHY (Beast Lore)
+	UF_FLAG_GROUP_ONLY   = 0x040,   // only visible to raid group members
+	UF_FLAG_UNK5         = 0x080,   // meaning unknown, not used in vanilla
+	UF_FLAG_DYNAMIC      = 0x100,   // visible to everyone, but different values can be sent to different observers
+};
+
+struct UpdateFieldData
+{
+    UpdateFieldData() = default;
+    constexpr UpdateFieldData(uint8 objectTypeMask_, const char* name_, uint16 offset_, uint16 size_, UpdateFieldValueTypes valueType_, uint16 flags_) :
+        objectTypeMask(objectTypeMask_), name(name_), offset(offset_), size(size_), valueType(valueType_), flags(flags_) {}
+    uint8 objectTypeMask = 0;
+    const char* name = "";
+    uint16 offset = 0;
+    uint16 size = 0;
+    UpdateFieldValueTypes valueType = UF_TYPE_NONE;
+    uint16 flags = UF_FLAG_NONE;
+};
+
+namespace UpdateFields
+{
+    uint16 const* GetUpdateFieldFlagsArray(uint8 objectTypeId);
+    UpdateFieldData const* GetUpdateFieldDataByName(char const* name);
+    UpdateFieldData const* GetUpdateFieldDataByTypeMaskAndOffset(uint8 objectTypeMask, uint16 offset);
+};
+
 #endif

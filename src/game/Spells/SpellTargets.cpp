@@ -23,8 +23,8 @@
 #include "Server/SQLStorages.h"
 #include "Log.h"
 
-SpellTargetInfo::SpellTargetInfo(char const* name, SpellTargetImplicitType type, SpellTargetFilter filter, SpellTargetEnumerator enumerator) :
-    name(name), type(type), filter(filter), enumerator(enumerator)
+SpellTargetInfo::SpellTargetInfo(char const* name, SpellTargetImplicitType type, SpellTargetFilter filter, SpellTargetEnumerator enumerator, SpellTargetLOS los) :
+    name(name), type(type), filter(filter), enumerator(enumerator), los(los)
 {
 }
 
@@ -37,16 +37,16 @@ SpellTargetInfo SpellTargetInfoTable[MAX_SPELL_TARGETS] =
     /*[4]*/     { "TARGET_UNIT_NEAR_CASTER",                              TARGET_TYPE_UNIT,             TARGET_NEUTRAL,    TARGET_ENUMERATOR_CHAIN  },
     /*[5]*/     { "TARGET_UNIT_CASTER_PET",                               TARGET_TYPE_UNIT,             TARGET_HELPFUL,    TARGET_ENUMERATOR_SINGLE },
     /*[6]*/     { "TARGET_UNIT_ENEMY",                                    TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_CHAIN  },
-    /*[7]*/     { "TARGET_ENUM_UNITS_SCRIPT_AOE_AT_SRC_LOC",              TARGET_TYPE_UNIT,             TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE    },
-    /*[8]*/     { "TARGET_ENUM_UNITS_SCRIPT_AOE_AT_DEST_LOC",             TARGET_TYPE_UNIT,             TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE    },
+    /*[7]*/     { "TARGET_ENUM_UNITS_SCRIPT_AOE_AT_SRC_LOC",              TARGET_TYPE_UNIT,             TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE,   TARGET_LOS_SRC  },
+    /*[8]*/     { "TARGET_ENUM_UNITS_SCRIPT_AOE_AT_DEST_LOC",             TARGET_TYPE_UNIT,             TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE,   TARGET_LOS_DEST },
     /*[9]*/     { "TARGET_LOCATION_CASTER_HOME_BIND",                     TARGET_TYPE_LOCATION_DEST                                                 },
     /*[10]*/    { "TARGET_LOCATION_CASTER_DIVINE_BIND_NYI",               TARGET_TYPE_LOCATION_DEST                                                 },
     /*[11]*/    { "TARGET_PLAYER_NYI",                                    TARGET_TYPE_PLAYER,           TARGET_NEUTRAL,    TARGET_ENUMERATOR_SINGLE },
     /*[12]*/    { "TARGET_PLAYER_NEAR_CASTER_NYI",                        TARGET_TYPE_PLAYER,           TARGET_NEUTRAL,    TARGET_ENUMERATOR_CHAIN  },
     /*[13]*/    { "TARGET_PLAYER_ENEMY_NYI",                              TARGET_TYPE_PLAYER,           TARGET_HARMFUL,    TARGET_ENUMERATOR_SINGLE },
     /*[14]*/    { "TARGET_PLAYER_FRIEND_NYI",                             TARGET_TYPE_PLAYER,           TARGET_HELPFUL,    TARGET_ENUMERATOR_SINGLE },
-    /*[15]*/    { "TARGET_ENUM_UNITS_ENEMY_AOE_AT_SRC_LOC",               TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_AOE    },
-    /*[16]*/    { "TARGET_ENUM_UNITS_ENEMY_AOE_AT_DEST_LOC",              TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_AOE    },
+    /*[15]*/    { "TARGET_ENUM_UNITS_ENEMY_AOE_AT_SRC_LOC",               TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_AOE,   TARGET_LOS_SRC  },
+    /*[16]*/    { "TARGET_ENUM_UNITS_ENEMY_AOE_AT_DEST_LOC",              TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_AOE,   TARGET_LOS_DEST },
     /*[17]*/    { "TARGET_LOCATION_DATABASE",                             TARGET_TYPE_LOCATION_DEST,    TARGET_SCRIPT                               },
     /*[18]*/    { "TARGET_LOCATION_CASTER_DEST",                          TARGET_TYPE_LOCATION_DEST                                                 },
     /*[19]*/    { "TARGET_UNK_19",                                        TARGET_TYPE_UNKNOWN                                                       },
@@ -60,11 +60,11 @@ SpellTargetInfo SpellTargetInfoTable[MAX_SPELL_TARGETS] =
     /*[27]*/    { "TARGET_UNIT_CASTER_MASTER",                            TARGET_TYPE_UNIT,             TARGET_HELPFUL,    TARGET_ENUMERATOR_SINGLE },
     /*[28]*/    { "TARGET_ENUM_UNITS_ENEMY_AOE_AT_DYNOBJ_LOC",            TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_AOE    },
     /*[29]*/    { "TARGET_ENUM_UNITS_FRIEND_AOE_AT_DYNOBJ_LOC",           TARGET_TYPE_UNIT,             TARGET_HELPFUL,    TARGET_ENUMERATOR_AOE    },
-    /*[30]*/    { "TARGET_ENUM_UNITS_FRIEND_AOE_AT_SRC_LOC",              TARGET_TYPE_UNIT,             TARGET_HELPFUL,    TARGET_ENUMERATOR_AOE    },
-    /*[31]*/    { "TARGET_ENUM_UNITS_FRIEND_AOE_AT_DEST_LOC",             TARGET_TYPE_UNIT,             TARGET_HELPFUL,    TARGET_ENUMERATOR_AOE    },
+    /*[30]*/    { "TARGET_ENUM_UNITS_FRIEND_AOE_AT_SRC_LOC",              TARGET_TYPE_UNIT,             TARGET_HELPFUL,    TARGET_ENUMERATOR_AOE,   TARGET_LOS_SRC  },
+    /*[31]*/    { "TARGET_ENUM_UNITS_FRIEND_AOE_AT_DEST_LOC",             TARGET_TYPE_UNIT,             TARGET_HELPFUL,    TARGET_ENUMERATOR_AOE,   TARGET_LOS_DEST },
     /*[32]*/    { "TARGET_LOCATION_UNIT_MINION_POSITION",                 TARGET_TYPE_LOCATION_DEST                                                 },
-    /*[33]*/    { "TARGET_ENUM_UNITS_PARTY_AOE_AT_SRC_LOC",               TARGET_TYPE_UNIT,             TARGET_PARTY,      TARGET_ENUMERATOR_AOE    },
-    /*[34]*/    { "TARGET_ENUM_UNITS_PARTY_AOE_AT_DEST_LOC",              TARGET_TYPE_UNIT,             TARGET_PARTY,      TARGET_ENUMERATOR_AOE    },
+    /*[33]*/    { "TARGET_ENUM_UNITS_PARTY_AOE_AT_SRC_LOC",               TARGET_TYPE_UNIT,             TARGET_PARTY,      TARGET_ENUMERATOR_AOE,   TARGET_LOS_SRC  },
+    /*[34]*/    { "TARGET_ENUM_UNITS_PARTY_AOE_AT_DEST_LOC",              TARGET_TYPE_UNIT,             TARGET_PARTY,      TARGET_ENUMERATOR_AOE,   TARGET_LOS_DEST },
     /*[35]*/    { "TARGET_UNIT_PARTY",                                    TARGET_TYPE_UNIT,             TARGET_PARTY,      TARGET_ENUMERATOR_SINGLE },
     /*[36]*/    { "TARGET_ENUM_UNITS_ENEMY_WITHIN_CASTER_RANGE",          TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_AOE    },
     /*[37]*/    { "TARGET_UNIT_FRIEND_AND_PARTY",                         TARGET_TYPE_UNIT,             TARGET_PARTY,      TARGET_ENUMERATOR_CHAIN  },
@@ -81,8 +81,8 @@ SpellTargetInfo SpellTargetInfoTable[MAX_SPELL_TARGETS] =
     /*[48]*/    { "TARGET_LOCATION_CASTER_BACK",                          TARGET_TYPE_LOCATION_DEST                                                 },
     /*[49]*/    { "TARGET_LOCATION_CASTER_LEFT",                          TARGET_TYPE_LOCATION_DEST                                                 },
     /*[50]*/    { "TARGET_LOCATION_CASTER_RIGHT",                         TARGET_TYPE_LOCATION_DEST                                                 },
-    /*[51]*/    { "TARGET_ENUM_GAMEOBJECTS_SCRIPT_AOE_AT_SRC_LOC",        TARGET_TYPE_GAMEOBJECT,       TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE    },
-    /*[52]*/    { "TARGET_ENUM_GAMEOBJECTS_SCRIPT_AOE_AT_DEST_LOC",       TARGET_TYPE_GAMEOBJECT,       TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE    },
+    /*[51]*/    { "TARGET_ENUM_GAMEOBJECTS_SCRIPT_AOE_AT_SRC_LOC",        TARGET_TYPE_GAMEOBJECT,       TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE,   TARGET_LOS_SRC  },
+    /*[52]*/    { "TARGET_ENUM_GAMEOBJECTS_SCRIPT_AOE_AT_DEST_LOC",       TARGET_TYPE_GAMEOBJECT,       TARGET_SCRIPT,     TARGET_ENUMERATOR_AOE,   TARGET_LOS_DEST },
     /*[53]*/    { "TARGET_LOCATION_CASTER_TARGET_POSITION",               TARGET_TYPE_LOCATION_DEST                                                 },
     /*[54]*/    { "TARGET_ENUM_UNITS_ENEMY_IN_CONE_54",                   TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_CONE   },
     /*[55]*/    { "TARGET_LOCATION_CASTER_FRONT_LEAP",                    TARGET_TYPE_LOCATION_DEST                                                 },
@@ -106,8 +106,8 @@ SpellTargetInfo SpellTargetInfoTable[MAX_SPELL_TARGETS] =
     /*[73]*/    { "TARGET_LOCATION_CASTER_RANDOM_CIRCUMFERENCE",          TARGET_TYPE_LOCATION_DEST                                                 },
     /*[74]*/    { "TARGET_LOCATION_UNIT_RANDOM_SIDE",                     TARGET_TYPE_LOCATION_DEST                                                 },
     /*[75]*/    { "TARGET_LOCATION_UNIT_RANDOM_CIRCUMFERENCE",            TARGET_TYPE_LOCATION_DEST                                                 },
-    /*[76]*/    { "TARGET_LOCATION_DYNOBJ_POSITION",                      TARGET_TYPE_LOCATION_DEST                                                 },
-    /*[77]*/    { "TARGET_UNIT_CHANNEL_TARGET",                           TARGET_TYPE_UNIT,             TARGET_HARMFUL,    TARGET_ENUMERATOR_SINGLE },
+    /*[76]*/    { "TARGET_LOCATION_CHANNEL_TARGET_DEST",                  TARGET_TYPE_LOCATION_DEST                                                 },
+    /*[77]*/    { "TARGET_UNIT_CHANNEL_TARGET",                           TARGET_TYPE_UNIT,             TARGET_NEUTRAL,    TARGET_ENUMERATOR_SINGLE },
     /*[78]*/    { "TARGET_LOCATION_NORTH",                                TARGET_TYPE_LOCATION_DEST                                                 },
     /*[79]*/    { "TARGET_LOCATION_SOUTH",                                TARGET_TYPE_LOCATION_DEST                                                 },
     /*[80]*/    { "TARGET_LOCATION_EAST",                                 TARGET_TYPE_LOCATION_DEST                                                 },
@@ -146,7 +146,7 @@ SpellEffectInfo SpellEffectInfoTable[MAX_SPELL_EFFECTS] =
     /*[15]*/     { "SPELL_EFFECT_RITUAL_ACTIVATE_PORTAL",       TARGET_TYPE_UNKNOWN,        TARGET_NONE },
     /*[16]*/     { "SPELL_EFFECT_QUEST_COMPLETE",               TARGET_TYPE_UNIT,           TARGET_NONE }, // player target only
     /*[17]*/     { "SPELL_EFFECT_WEAPON_DAMAGE_NOSCHOOL",       TARGET_TYPE_UNIT,           TARGET_NONE },
-    /*[18]*/     { "SPELL_EFFECT_RESURRECT",                    TARGET_TYPE_UNIT,           TARGET_UNIT }, // player target only
+    /*[18]*/     { "SPELL_EFFECT_RESURRECT",                    TARGET_TYPE_CORPSE,         TARGET_UNIT }, // player target only
     /*[19]*/     { "SPELL_EFFECT_ADD_EXTRA_ATTACKS",            TARGET_TYPE_UNIT,           TARGET_NONE },
     /*[20]*/     { "SPELL_EFFECT_DODGE",                        TARGET_TYPE_NONE,           TARGET_NONE }, // confirmed none
     /*[21]*/     { "SPELL_EFFECT_EVADE",                        TARGET_TYPE_NONE,           TARGET_NONE },
@@ -371,6 +371,8 @@ void SpellTargetMgr::Initialize()
             if (!spellInfo->Effect[effIdxSource])
                 continue;
 
+            SpellEffectInfo& effectTargetingSource = SpellEffectInfoTable[spellInfo->Effect[effIdxSource]];
+
             SpellTargetImplicitType implicitEffectType = data.implicitType[effIdxSource];
             for (uint8 rightSource = 0; rightSource < 2; ++rightSource)
             {
@@ -392,6 +394,11 @@ void SpellTargetMgr::Initialize()
                 // start from first next target
                 for (uint32 effIdxTarget = effIdxSource; effIdxTarget < MAX_EFFECT_INDEX; ++effIdxTarget)
                 {
+                    if (!spellInfo->Effect[effIdxTarget])
+                        continue;
+
+                    SpellEffectInfo& effectTargetingTarget = SpellEffectInfoTable[spellInfo->Effect[effIdxTarget]];
+
                     SpellTargetImplicitType implicitEffectTypeTarget = data.implicitType[effIdxTarget];
                     for (uint8 rightTarget = effIdxSource == effIdxTarget ? rightSource + 1 : 0; rightTarget < 2; ++rightTarget)
                     {
@@ -431,7 +438,8 @@ void SpellTargetMgr::Initialize()
                                     case TARGET_TYPE_UNIT:
                                     case TARGET_TYPE_PLAYER:
                                     {
-                                        if (info.enumerator == TARGET_ENUMERATOR_SINGLE) // always ignore subsequent
+                                        // always ignore subsequent
+                                        if (info.enumerator == TARGET_ENUMERATOR_SINGLE && CanEffectConsumeTarget(info.type, effectTargetingSource.requiredTarget))
                                         {
                                             ignore = true;
                                             break;
@@ -528,6 +536,17 @@ bool SpellTargetMgr::CanEffectBeFilledWithMask(uint32 spellId, uint32 effIdx, ui
     }
 }
 
+bool SpellTargetMgr::CanEffectConsumeTarget(SpellTargetImplicitType targetType, SpellTargetImplicitType effectTargetType)
+{
+    switch (targetType)
+    {
+        // incomplete mapping - adjust as needed
+        case TARGET_TYPE_UNIT: if (effectTargetType == TARGET_TYPE_LOCATION_DEST) return false; // 43178
+        default: break;
+    }
+    return true;
+}
+
 float SpellTargetMgr::GetJumpRadius(uint32 spellId)
 {
     switch (spellId)
@@ -539,6 +558,12 @@ float SpellTargetMgr::GetJumpRadius(uint32 spellId)
         case 40860:
         case 40861:
             return 25.f;
+        case 44537: // Fel Lightning - MgT / SWP
+        case 46048:
+        case 46480:
+            return 50.f;
+        case 45664: // Legion Lightning - KJ
+            return 18.f;
     }
     return CHAIN_SPELL_JUMP_RADIUS;
 }
@@ -558,8 +583,6 @@ SpellTargetFilterScheme SpellTargetMgr::GetSpellTargetingFilterScheme(SpellTarge
         case 37153:
         case 41294: // Fixate - Reliquary of Souls - Picks closest target
             return SCHEME_CLOSEST;
-        case 28307:
-            return SCHEME_HIGHEST_HP;
         case 42005: // Bloodboil (spell hits only the 5 furthest away targets)
             return SCHEME_FURTHEST;
     }

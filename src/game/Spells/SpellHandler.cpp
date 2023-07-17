@@ -18,7 +18,7 @@
 
 #include "Common.h"
 #include "Server/DBCStores.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Globals/ObjectMgr.h"
 #include "AI/ScriptDevAI/ScriptDevAIMgr.h"
@@ -162,6 +162,8 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
         return;
     }
 
+    _player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ITEM_USE);
+
     // Note: If script stop casting it must send appropriate data to client to prevent stuck item in gray state.
     if (!sScriptDevAIMgr.OnItemUse(pUser, pItem, targets))
     {
@@ -276,6 +278,9 @@ void WorldSession::HandleGameObjectUseOpcode(WorldPacket& recv_data)
     if (!_player->IsSelfMover())
         return;
 
+    if (_player->IsBeingTeleported())
+        return;
+
     GameObject* obj = _player->GetMap()->GetGameObject(guid);
     if (!obj)
         return;
@@ -314,6 +319,15 @@ void WorldSession::HandleGameObjectUseOpcode(WorldPacket& recv_data)
     if (obj->GetGOInfo()->CannotBeUsedUnderImmunity() && _player->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE))
         return;
 
+    // code meant to be in CanUseNow
+    if (obj->GetGoType() == GAMEOBJECT_TYPE_CHAIR)
+    {
+        float x, y;
+        std::tie(x, y) = obj->GetClosestChairSlotPosition(_player);
+        if (_player->GetDistance(x, y, obj->GetPositionZ(), DIST_CALC_NONE) > 3.f * 3.f)
+            return;
+    }
+
     obj->Use(_player);
 }
 
@@ -343,6 +357,7 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
         return;
     }
 
+    Unit* caster = mover;
     if (mover->GetTypeId() == TYPEID_PLAYER)
     {
         // not have spell in spellbook or spell passive and not casted by client
@@ -356,12 +371,18 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
     }
     else
     {
+        bool isPassive = IsPassiveSpell(spellInfo);
         // not have spell in spellbook or spell passive and not casted by client
-        if (!mover->HasSpell(spellId) || IsPassiveSpell(spellInfo))
+        if (!mover->HasSpell(spellId) || isPassive)
         {
-            // cheater? kick? ban?
-            recvPacket.rpos(recvPacket.wpos());             // prevent spam at ignore packet
-            return;
+            if (!_player->HasSpell(spellId) || isPassive)
+            {
+                // cheater? kick? ban?
+                recvPacket.rpos(recvPacket.wpos());             // prevent spam at ignore packet
+                return;
+            }
+            else
+                caster = _player;
         }
     }
 
@@ -378,7 +399,7 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
     if (Unit* target = targets.getUnitTarget())
     {
         // if rank not found then function return nullptr but in explicit cast case original spell can be casted and later failed with appropriate error message
-        if (SpellEntry const* actualSpellInfo = sSpellMgr.SelectAuraRankForLevel(spellInfo, target->getLevel()))
+        if (SpellEntry const* actualSpellInfo = sSpellMgr.SelectAuraRankForLevel(spellInfo, target->GetLevel()))
             spellInfo = actualSpellInfo;
     }
 
@@ -389,19 +410,21 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
         return;
 
     bool handled = false;
-    Spell* spell = new Spell(mover, spellInfo, TRIGGERED_NONE);
+    Spell* spell = new Spell(caster, spellInfo, TRIGGERED_NONE);
     spell->m_cast_count = cast_count;                       // set count of casts
-    if (mover->HasGCD(spellInfo) || !mover->IsSpellReady(*spellInfo))
+    spell->m_clientCast = true;
+    if (caster->HasGCD(spellInfo) || !caster->IsSpellReady(*spellInfo))
     {
-        if (mover->HasGCDOrCooldownWithinMargin(*spellInfo))
+        if (caster->HasGCDOrCooldownWithinMargin(*spellInfo))
         {
             handled = true;
             _player->SetQueuedSpell(spell);
-            GetMessager().AddMessage([guid = mover->GetObjectGuid(), targets = targets](WorldSession* session) mutable
+            GetMessager().AddMessage([guid = caster->GetObjectGuid(), isPlayer = caster != mover, targets = targets](WorldSession* session) mutable
             {
                 if (session->GetPlayer()) // in case of logout
                 {
-                    if (session->GetPlayer()->GetMover()->GetObjectGuid() == guid) // in case of mind control end
+                    // in case of mind control end
+                    if ((isPlayer && session->GetPlayer()->GetObjectGuid() == guid) || (!isPlayer && session->GetPlayer()->GetMover()->GetObjectGuid() == guid))
                         session->GetPlayer()->CastQueuedSpell(targets);
                     else
                         session->GetPlayer()->ClearQueuedSpell();
@@ -428,10 +451,6 @@ void WorldSession::HandleCancelCastOpcode(WorldPacket& recvPacket)
     if (!_player->IsClientControlled(_player))
         return;
 
-    // FIXME: hack, ignore unexpected client cancel Deadly Throw cast
-    if (spellId == 26679)
-        return;
-
     if (_player->IsNonMeleeSpellCasted(false))
         _player->InterruptNonMeleeSpells(false, spellId);
 }
@@ -445,7 +464,7 @@ void WorldSession::HandleCancelAuraOpcode(WorldPacket& recvPacket)
     if (!spellInfo)
         return;
 
-    if (spellInfo->HasAttribute(SPELL_ATTR_CANT_CANCEL))
+    if (spellInfo->HasAttribute(SPELL_ATTR_NO_AURA_CANCEL))
         return;
 
     if (IsPassiveSpell(spellInfo))
@@ -506,10 +525,6 @@ void WorldSession::HandlePetCancelAuraOpcode(WorldPacket& recvPacket)
     recvPacket >> guid;
     recvPacket >> spellId;
 
-    // ignore for remote control state
-    if (!_player->IsSelfMover())
-        return;
-
     SpellEntry const* spellInfo = sSpellTemplate.LookupEntry<SpellEntry>(spellId);
     if (!spellInfo)
     {
@@ -538,9 +553,6 @@ void WorldSession::HandlePetCancelAuraOpcode(WorldPacket& recvPacket)
     }
 
     pet->RemoveAurasDueToSpell(spellId);
-
-    // TODO: check if its correctly handled in aura remove
-    //pet->AddCreatureSpellCooldown(spellId);
 }
 
 void WorldSession::HandleCancelGrowthAuraOpcode(WorldPacket& /*recvPacket*/)

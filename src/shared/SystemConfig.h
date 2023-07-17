@@ -20,7 +20,7 @@
 #define MANGOS_SYSTEMCONFIG_H
 
 #ifndef _PACKAGENAME
-#define _PACKAGENAME "CMaNGOS TBC"
+#define _PACKAGENAME "CMaNGOS"
 #endif
 
 #include "revision.h"
@@ -37,13 +37,13 @@
 // Format is YYYYMMDDRR where RR is the change in the conf file
 // for that day.
 #ifndef _MANGOSDCONFVERSION
-# define _MANGOSDCONFVERSION 2020060701
+# define _MANGOSDCONFVERSION 2022012301
 #endif
 #ifndef _REALMDCONFVERSION
 # define _REALMDCONFVERSION 2021031501
 #endif
 
-#if MANGOS_ENDIAN == MANGOS_BIGENDIAN
+#if MANGOS_ENDIAN == MANGOS_BIG_ENDIAN
 # define _ENDIAN_STRING "big-endian"
 #else
 # define _ENDIAN_STRING "little-endian"
@@ -55,6 +55,10 @@
 # define ARCHITECTURE "x64"
 #elif defined(__ia64)  || defined(__IA64__)  || defined(_M_IA64)
 # define ARCHITECTURE "IA64"
+#elif defined(__aarch64__)
+# define ARCHITECTURE "AArch64"
+#elif defined(__arm__)
+# define ARCHITECTURE "ARM32"
 #else
 # define ARCHITECTURE "x32"
 #endif

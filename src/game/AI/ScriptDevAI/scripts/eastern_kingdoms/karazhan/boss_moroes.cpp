@@ -24,6 +24,7 @@ EndScriptData */
 #include "AI/ScriptDevAI/include/sc_common.h"
 #include "karazhan.h"
 #include "AI/ScriptDevAI/base/CombatAI.h"
+#include "Spells/Scripts/SpellScript.h"
 
 enum
 {
@@ -33,9 +34,9 @@ enum
     SAY_AGGRO           = -1532011,
     SAY_SPECIAL_1       = -1532012,
     SAY_SPECIAL_2       = -1532013,
-    SAY_KILL_1          = -1532014,
-    SAY_KILL_2          = -1532015,
-    SAY_KILL_3          = -1532016,
+    SAY_KILL_1          = 13461,
+    SAY_KILL_2          = 15085,
+    SAY_KILL_3          = 15086,
     SAY_DEATH           = -1532017,
     SAY_FRENZY          = -1000002,
 
@@ -92,6 +93,7 @@ struct boss_moroesAI : public CombatAI
         {
             return x < -11030.f || x > -10943.f || y < -1955.f || y > -1860.f;
         });
+        AddOnKillText(SAY_KILL_1, SAY_KILL_2, SAY_KILL_3);
         Reset();
     }
 
@@ -140,16 +142,6 @@ struct boss_moroesAI : public CombatAI
 
         if (m_instance)
             m_instance->SetData(TYPE_MOROES, IN_PROGRESS);
-    }
-
-    void KilledUnit(Unit* /*pVictim*/) override
-    {
-        switch (urand(0, 2))
-        {
-            case 0: DoScriptText(SAY_KILL_1, m_creature); break;
-            case 1: DoScriptText(SAY_KILL_2, m_creature); break;
-            case 2: DoScriptText(SAY_KILL_3, m_creature); break;
-        }
     }
 
     void JustReachedHome() override
@@ -287,10 +279,21 @@ struct boss_moroesAI : public CombatAI
     }
 };
 
+struct MoroesVanish : public AuraScript
+{
+    void OnApply(Aura* aura, bool apply) const override
+    {
+        if (!apply)
+            aura->GetTarget()->AI()->SendAIEvent(AI_EVENT_CUSTOM_A, aura->GetTarget(), aura->GetTarget());
+    }
+};
+
 void AddSC_boss_moroes()
 {
     Script* pNewScript = new Script;
     pNewScript->Name = "boss_moroes";
     pNewScript->GetAI = &GetNewAIInstance<boss_moroesAI>;
     pNewScript->RegisterSelf();
+
+    RegisterSpellScript<MoroesVanish>("spell_moroes_vanish");
 }

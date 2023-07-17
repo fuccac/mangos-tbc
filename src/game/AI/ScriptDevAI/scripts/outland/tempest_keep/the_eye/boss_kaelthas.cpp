@@ -196,11 +196,6 @@ enum
     MAX_MIND_CONTROL                    = 3,
 };
 
-enum Timers
-{
-    TIMER_PHASE_2_WEAPONS_DURATION = 90000, // very early pre 2.1 - 90s (90000), later 120s (120000)
-};
-
 static const uint32 m_auiSpellSummonWeapon[MAX_WEAPONS] =
 {
     SPELL_SUMMON_WEAPONA, SPELL_SUMMON_WEAPONB, SPELL_SUMMON_WEAPONC, SPELL_SUMMON_WEAPOND,
@@ -435,7 +430,7 @@ struct boss_kaelthasAI : public ScriptedAI
             SetCombatScriptStatus(true);
             m_creature->SetInCombatWithZone();
 
-            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
 
             if (m_instance)
                 m_instance->SetData(TYPE_KAELTHAS, IN_PROGRESS);
@@ -486,11 +481,11 @@ struct boss_kaelthasAI : public ScriptedAI
                 m_netherVapor.push_back(summoned->GetObjectGuid());
                 break;
             }
-            default:
+            default: // Weapons
             {
                 m_weapons.push_back(summoned->GetObjectGuid());
                 m_weaponAttackTimer = 2000;
-                summoned->AI()->SetReactState(REACT_DEFENSIVE);
+                summoned->AI()->SetReactState(REACT_PASSIVE);
                 summoned->SetCorpseDelay(60);
                 break;
             }
@@ -511,7 +506,10 @@ struct boss_kaelthasAI : public ScriptedAI
 #ifdef FAST_TIMERS
             m_uiPhaseTimer = 10000;
 #else
-            m_uiPhaseTimer = TIMER_PHASE_2_WEAPONS_DURATION;
+            m_uiPhaseTimer = 120000;
+#endif
+#ifdef PRENERF_2_0_3
+            m_uiPhaseTimer = 90000; // very early pre 2.1 - 90s (90000), later 120s (120000);
 #endif
         }
     }
@@ -549,7 +547,7 @@ struct boss_kaelthasAI : public ScriptedAI
                 // ToDo: also start channeling to the giant crystals nearby
                 DoScriptText(SAY_PHASE5_NUTS, m_creature);
                 m_creature->SetFacingTo(3.176499f);
-                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                 m_phaseTransitionTimer = 2000;
 
                 if (m_worldTriggersFirstStage.empty())
@@ -582,7 +580,7 @@ struct boss_kaelthasAI : public ScriptedAI
                 m_creature->SetLevitate(false);
                 m_creature->SetHover(false);
                 SetCombatScriptStatus(false);
-                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                 m_creature->RemoveAurasDueToSpell(SPELL_KAEL_FULL_POWER);
                 m_uiPhase = PHASE_5_GRAVITY;
                 SetCombatMovement(true);
@@ -978,13 +976,16 @@ struct boss_kaelthasAI : public ScriptedAI
 #else
                                 m_uiPhaseTimer = 180000;
 #endif
+#ifdef PRENERF_2_0_3
+                                m_uiPhaseTimer = 120000;
+#endif
                             }
                             break;
                         }
                         case 1:
                         {
                             DoScriptText(SAY_PHASE4_INTRO2, m_creature);
-                            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                             DoResetThreat();
                             SetCombatScriptStatus(false);
                             SetCombatMovement(true, true);
@@ -1380,7 +1381,7 @@ struct advisor_base_ai : public ScriptedAI
 
         m_creature->SetStandState(UNIT_STAND_STATE_STAND);
         m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER);
-        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
 
         m_attackTimer = 0;
 
@@ -1432,7 +1433,7 @@ struct advisor_base_ai : public ScriptedAI
         m_creature->RemoveAllAurasOnDeath();
         m_creature->ModifyAuraState(AURA_STATE_HEALTHLESS_20_PERCENT, false);
         m_creature->ModifyAuraState(AURA_STATE_HEALTHLESS_35_PERCENT, false);
-        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+        m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
         m_creature->ClearAllReactives();
         m_creature->MeleeAttackStop(m_creature->GetVictim());
         SetCombatMovement(false);
@@ -1467,7 +1468,7 @@ struct advisor_base_ai : public ScriptedAI
             if (m_attackTimer <= uiDiff)
             {
                 m_attackTimer = 0;
-                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                 m_bFakeDeath = false;
                 SetCombatScriptStatus(false);
                 m_creature->MeleeAttackStart(m_creature->GetVictim());
@@ -1834,7 +1835,7 @@ struct boss_master_engineer_telonicusAI : public advisor_base_ai
     }
 };
 
-struct npc_nether_vaporAI : public ScriptedAI, public TimerManager
+struct npc_nether_vaporAI : public ScriptedAI
 {
     npc_nether_vaporAI(Creature* creature) : ScriptedAI(creature)
     {
@@ -1864,11 +1865,6 @@ struct npc_nether_vaporAI : public ScriptedAI, public TimerManager
         DoCastSpellIfCan(nullptr, SPELL_NETHER_VAPOR_PERIODIC_SCRIPT, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
         DoCastSpellIfCan(nullptr, SPELL_NETHER_VAPOR_LIGHTNING, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
     }
-
-    void UpdateAI(const uint32 diff)
-    {
-        UpdateTimers(diff);
-    }
 };
 
 struct NetherVaporLightning : public AuraScript
@@ -1894,7 +1890,7 @@ struct NetherVaporSummon : public SpellScript
 
 struct NetherVaporSummonParent : public SpellScript
 {
-    void OnEffectExecute(Spell* spell, SpellEffectIndex effIdx) const override
+    void OnEffectExecute(Spell* spell, SpellEffectIndex /*effIdx*/) const override
     {
         spell->GetCaster()->CastSpell(nullptr, 35861, TRIGGERED_NONE);
         spell->GetCaster()->CastSpell(nullptr, 35862, TRIGGERED_NONE);
@@ -1918,6 +1914,16 @@ struct RemoveWeapons : public SpellScript
         target->CastSpell(nullptr, 39502, TRIGGERED_IGNORE_CURRENT_CASTED_SPELL);
         target->CastSpell(nullptr, 39503, TRIGGERED_IGNORE_CURRENT_CASTED_SPELL);
         target->CastSpell(nullptr, 39504, TRIGGERED_IGNORE_CURRENT_CASTED_SPELL);
+    }
+};
+
+struct GravityLapseKnockup : public AuraScript
+{
+    void OnPeriodicTickEnd(Aura* aura) const override
+    {
+        Unit* target = aura->GetTarget();
+        if (!target->IsAboveGround(4.f)) // knock up player if he is too close to the ground
+            target->CastSpell(nullptr, 35938, TRIGGERED_OLD_TRIGGERED);
     }
 };
 
@@ -1954,8 +1960,9 @@ void AddSC_boss_kaelthas()
     pNewScript->GetAI = &GetNewAIInstance<npc_nether_vaporAI>;
     pNewScript->RegisterSelf();
 
-    RegisterAuraScript<NetherVaporLightning>("spell_nether_vapor_lightning");
+    RegisterSpellScript<NetherVaporLightning>("spell_nether_vapor_lightning");
     RegisterSpellScript<NetherVaporSummon>("spell_nether_vapor_summon");
     RegisterSpellScript<NetherVaporSummonParent>("spell_nether_vapor_summon_parent");
     RegisterSpellScript<RemoveWeapons>("spell_remove_weapons");
+    RegisterSpellScript<GravityLapseKnockup>("spell_gravity_lapse_knockup");
 }

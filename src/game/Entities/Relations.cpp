@@ -227,12 +227,8 @@ ReputationRank Unit::GetReactionTo(Unit const* unit) const
             if (thisPlayer == unitPlayer)
                 return REP_FRIENDLY;
 
-            if (unitPlayer->GetUInt32Value(PLAYER_DUEL_TEAM))
-            {
-                // TODO: Dueling misses duel arbiter and temporary truce during countdown, fix me later...
-                if (thisPlayer->IsInDuelWith(unitPlayer))
-                    return REP_HOSTILE;
-            }
+            if (thisPlayer->GetUInt32Value(PLAYER_DUEL_TEAM) && unitPlayer->GetUInt32Value(PLAYER_DUEL_TEAM) && thisPlayer->GetGuidValue(PLAYER_DUEL_ARBITER) == unitPlayer->GetGuidValue(PLAYER_DUEL_ARBITER))
+                return thisPlayer->GetUInt32Value(PLAYER_DUEL_TEAM) != unitPlayer->GetUInt32Value(PLAYER_DUEL_TEAM) ? REP_HOSTILE : REP_FRIENDLY;
 
             // Pre-WotLK group check: always, replaced with faction template check in WotLK
             if (thisPlayer->IsInGroup(unitPlayer))
@@ -294,7 +290,7 @@ ReputationRank Unit::GetReactionTo(const Corpse* corpse) const
 
     if (const FactionTemplateEntry* thisTemplate = GetFactionTemplateEntry())
     {
-        if (const uint32 corpseTemplateId = corpse->getFaction())
+        if (const uint32 corpseTemplateId = corpse->GetFaction())
         {
             if (const FactionTemplateEntry* corpseTemplate = sFactionTemplateStore.LookupEntry(corpseTemplateId))
                 return GetFactionReaction(thisTemplate, corpseTemplate);
@@ -379,7 +375,7 @@ bool Unit::CanAttack(const Unit* unit) const
     }
 
     // We can't attack unit when at least one of these flags is present on it:
-    const uint32 mask = (UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_NON_ATTACKABLE_2 | UNIT_FLAG_TAXI_FLIGHT | UNIT_FLAG_NOT_SELECTABLE);
+    const uint32 mask = (UNIT_FLAG_SPAWNING | UNIT_FLAG_NOT_ATTACKABLE_1 | UNIT_FLAG_UNTARGETABLE | UNIT_FLAG_TAXI_FLIGHT | UNIT_FLAG_UNINTERACTIBLE);
     if (unit->HasFlag(UNIT_FIELD_FLAGS, mask))
         return false;
 
@@ -425,7 +421,7 @@ bool Unit::CanAttack(const Unit* unit) const
             if (!unitPlayer)
                 return true;
 
-            if (thisPlayer->IsInDuelWith(unitPlayer))
+            if (thisPlayer->GetUInt32Value(PLAYER_DUEL_TEAM) && unitPlayer->GetUInt32Value(PLAYER_DUEL_TEAM) && thisPlayer->GetGuidValue(PLAYER_DUEL_ARBITER) == unitPlayer->GetGuidValue(PLAYER_DUEL_ARBITER))
                 return true;
 
             if (unitPlayer->IsPvP())
@@ -490,7 +486,7 @@ bool Unit::CanAssist(const Unit* unit, bool ignoreFlags) const
     // Original logic
 
     // We can't assist unselectable unit
-    if (unit->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE))
+    if (unit->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE))
         return false;
 
     // Check immunity flags
@@ -529,7 +525,8 @@ bool Unit::CanAssist(const Unit* unit, bool ignoreFlags) const
 
         if (thisPlayer && unitPlayer)
         {
-            if (thisPlayer->IsInDuelWith(unitPlayer))
+            if (thisPlayer->GetGuidValue(PLAYER_DUEL_ARBITER) != unitPlayer->GetGuidValue(PLAYER_DUEL_ARBITER)
+                || thisPlayer->GetUInt32Value(PLAYER_DUEL_TEAM) != unitPlayer->GetUInt32Value(PLAYER_DUEL_TEAM))
                 return false;
 
             if (unitPlayer->IsPvPFreeForAll() && !thisPlayer->IsPvPFreeForAll())
@@ -647,7 +644,7 @@ bool Unit::CanInteract(const Unit* unit) const
     // Original logic
 
     // Unit must be selectable
-    if (unit->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE))
+    if (unit->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE))
         return false;
 
     // Unit must have NPC flags so we can actually interact in some way
@@ -694,7 +691,7 @@ bool Unit::CanInteractNow(const Unit* unit) const
     {
         if (SpellShapeshiftFormEntry const* formEntry = sSpellShapeshiftFormStore.LookupEntry(GetShapeshiftForm()))
         {
-            if (!(formEntry->flags1 & SHAPESHIFT_FORM_FLAG_ALLOW_NPC_INTERACT))
+            if (!(formEntry->flags1 & SHAPESHIFT_FLAG_CAN_NPC_INTERACT))
                 return false;
         }
     }
@@ -1128,11 +1125,11 @@ bool Unit::CanAttackSpell(Unit const* target, SpellEntry const* spellInfo, bool 
     if (spellInfo)
     {
         // inversealive is needed for some spells which need to be casted at dead targets (aoe)
-        if (!target->IsAlive() && !spellInfo->HasAttribute(SPELL_ATTR_EX2_CAN_TARGET_DEAD))
+        if (!target->IsAlive() && !spellInfo->HasAttribute(SPELL_ATTR_EX2_ALLOW_DEAD_TARGET))
             return false;
     }
 
-    if (CanAttack(target))
+    if (CanAttackInCombat(target))
     {
         if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED))
         {
@@ -1184,7 +1181,7 @@ bool Unit::CanAttackSpell(Unit const* target, SpellEntry const* spellInfo, bool 
 /////////////////////////////////////////////////
 bool Unit::CanAssistSpell(Unit const* target, SpellEntry const* spellInfo) const
 {
-    return CanAssist(target, (spellInfo && spellInfo->HasAttribute(SPELL_ATTR_EX6_ASSIST_IGNORE_IMMUNE_FLAG)));
+    return CanAssist(target, (spellInfo && spellInfo->HasAttribute(SPELL_ATTR_EX6_CAN_ASSIST_IMMUNE_PC)));
 }
 
 /////////////////////////////////////////////////
@@ -1204,7 +1201,7 @@ bool Unit::CanAttackOnSight(Unit const* target) const
         return false;
 
     // Do not aggro while a successful feign death is active
-    if (target->IsFeigningDeathSuccessfully())
+    if (!IsIgnoringFeignDeath() && target->IsFeigningDeathSuccessfully())
         return false;
 
     // Pets in disabled state (e.g. when player is mounted) do not draw aggro on sight
@@ -1213,6 +1210,40 @@ bool Unit::CanAttackOnSight(Unit const* target) const
         return false;
 
     return (CanAttack(target) && IsEnemy(target));
+}
+
+/////////////////////////////////////////////////
+/// [Serverside] Opposition: Unit can attack a target on sight
+///
+/// @note Relations API Tier 3
+///
+/// This function is not intented to have client-side counterpart by original design.
+/// Typically used for combat checks for at war case
+/////////////////////////////////////////////////
+bool Unit::CanAttackInCombat(Unit const* target) const
+{
+    if (!CanAttack(target))
+    {
+        if (target->IsPlayerControlled()) // If this is not fine grained enough, incorporation into CanAttack or copypaste of that whole func will be necessary
+        {
+            // NPC should be able to attack players who are at war with the npc
+            if (IsFriend(target))
+            {
+                if (const Player* unitPlayer = target->GetControllingPlayer())
+                {
+                    if (const FactionTemplateEntry* thisFactionTemplate = GetFactionTemplateEntry())
+                    {
+                        const FactionEntry* thisFactionEntry = sFactionStore.LookupEntry<FactionEntry>(thisFactionTemplate->faction);
+                        if (thisFactionEntry && thisFactionEntry->HasReputation() && unitPlayer->GetReputationMgr().IsAtWar(thisFactionEntry))
+                            return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    return true;
 }
 
 /////////////////////////////////////////////////
@@ -1360,12 +1391,12 @@ bool Unit::CanAssistInCombatAgainst(Unit const* who, Unit const* enemy) const
     MANGOS_ASSERT(enemy)
 
     if (GetMap()->Instanceable()) // in dungeons nothing else needs to be evaluated
-        return true;
+        return CanJoinInAttacking(enemy);
 
     if (IsInCombat()) // if fighting something else, do not assist
         return false;
 
-    if (CanAssist(who) && CanAttackOnSight(enemy))
+    if (CanAssist(who, IsContestedGuard()) && CanJoinInAttacking(enemy))
         return true;
 
     return false;
@@ -1383,6 +1414,9 @@ bool Unit::CanAssistInCombatAgainst(Unit const* who, Unit const* enemy) const
 bool Unit::CanJoinInAttacking(Unit const* enemy) const
 {
     if (!CanEnterCombat())
+        return false;
+
+    if (!CanInitiateAttack())
         return false;
 
     if (IsFeigningDeathSuccessfully())

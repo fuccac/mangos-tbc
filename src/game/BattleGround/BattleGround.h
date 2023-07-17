@@ -22,7 +22,7 @@
 #include "Common.h"
 #include "Globals/SharedDefines.h"
 #include "Maps/Map.h"
-#include "ByteBuffer.h"
+#include "Util/ByteBuffer.h"
 #include "Entities/ObjectGuid.h"
 
 // magic event-numbers
@@ -253,7 +253,7 @@ class BattleGroundScore
 {
     public:
         BattleGroundScore() : killingBlows(0), deaths(0), honorableKills(0),
-            bonusHonor(0), damageDone(0), healingDone(0)
+            bonusHonor(0), damageDone(0), healingDone(0), Team(ALLIANCE)
         {}
         virtual ~BattleGroundScore() {}                     // virtual destructor is used when deleting score from scores map
 
@@ -276,6 +276,8 @@ class BattleGroundScore
         uint32 bonusHonor;
         uint32 damageDone;
         uint32 healingDone;
+
+        uint32 Team;
 };
 
 /*
@@ -311,7 +313,7 @@ class BattleGround
         // that's why the m_map hack is here..
         uint32 GetInstanceId() const        { return m_bgMap ? GetBgMap()->GetInstanceId() : 0; }
         BattleGroundStatus GetStatus() const { return m_status; }
-        uint32 GetClientInstanceID() const  { return m_clientInstanceId; }
+        uint32 GetClientInstanceId() const  { return m_clientInstanceId; }
         uint32 GetStartTime() const         { return m_startTime; }
         uint32 GetEndTime() const           { return m_endTime; }
         uint32 GetMaxPlayers() const        { return m_maxPlayers; }
@@ -475,6 +477,9 @@ class BattleGround
         void SendYellToAll(int32 /*entry*/, uint32 /*language*/, Creature const* /*source*/);
         void SendYell2ToAll(int32 /*entry*/, uint32 /*language*/, Creature const* /*source*/, int32 /*arg1*/, int32 /*arg2*/);
 
+        void SendBcdToAll(int32 bcdEntry, ChatMsg msgtype, Creature const* source);
+        void SendBcdToTeam(int32 bcdEntry, ChatMsg msgtype, Creature const* source, Team team);
+
         // Handle raid groups
         Group* GetBgRaid(Team team) const { return m_bgRaids[GetTeamIndexByTeamId(team)]; }
         void SetBgRaid(Team /*team*/, Group* /*bgRaid*/);
@@ -511,7 +516,7 @@ class BattleGround
         virtual void HandleKillUnit(Creature* /*unit*/, Player* /*killer*/) {}
 
         // handle event sent from gameobjects
-        virtual bool HandleEvent(uint32 /*eventId*/, GameObject* /*go*/, Unit* /*invoker*/) { return false; }
+        virtual bool HandleEvent(uint32 /*eventId*/, Object* /*source*/, Object* /*target*/) { return false; }
 
         // Called when a creature is created
         virtual void HandleCreatureCreate(Creature* /*creature*/) {}
@@ -554,7 +559,7 @@ class BattleGround
         }
 
         // Get creature guid from event
-        ObjectGuid GetSingleCreatureGuid(uint8 /*event1*/, uint8 /*event2*/);
+        uint32 GetSingleCreatureGuid(uint8 /*event1*/, uint8 /*event2*/);
 
         // Handle door events
         void OpenDoorEvent(uint8 /*event1*/, uint8 event2 = 0);
@@ -564,12 +569,12 @@ class BattleGround
         void HandleTriggerBuff(ObjectGuid /*go_guid*/);
 
         // Handle the respawn or despawn of creatures or gameobjects
-        void ChangeBgObjectSpawnState(ObjectGuid /*guid*/, uint32 /*respawntime*/);
-        void ChangeBgCreatureSpawnState(ObjectGuid /*guid*/, uint32 /*respawntime*/);
+        void ChangeBgObjectSpawnState(uint32 dbGuid, uint32 /*respawntime*/);
+        void ChangeBgCreatureSpawnState(uint32 dbGuid, uint32 /*respawntime*/);
 
         // Handle door states
-        void DoorOpen(ObjectGuid /*guid*/);
-        void DoorClose(ObjectGuid /*guid*/);
+        void DoorOpen(uint32 dbGuid);
+        void DoorClose(uint32 dbGuid);
 
         // Get match premature winner
         virtual Team GetPrematureWinner();
@@ -592,13 +597,10 @@ class BattleGround
         // Handle script condition fulfillment
         virtual bool IsConditionFulfilled(Player const* /*source*/, uint32 /*conditionId*/, WorldObject const* /*conditionSource*/, uint32 /*conditionSourceType*/) { return false; }
 
-        /* virtual score-array - get's used in bg-subclasses */
-        int32 m_teamScores[PVP_TEAM_COUNT];
-
         struct EventObjects
         {
-            GuidVector gameobjects;
-            GuidVector creatures;
+            std::vector<uint32> gameobjects;
+            std::vector<uint32> creatures;
         };
 
         // cause we create it dynamicly i use a map - to avoid resizing when
@@ -610,7 +612,8 @@ class BattleGround
         // door-events are automaticly added - but _ALL_ other must be in this vector
         std::map<uint8, uint8> m_activeEvents;
 
-
+        uint32 GetPlayerSkinRefLootId() const { return m_playerSkinReflootId; }
+        void SetPlayerSkinRefLootId(uint32 reflootId) { m_playerSkinReflootId = reflootId; }
     protected:
         // this method is called, when BG cannot spawn its own spirit guide, or something is wrong, It correctly ends BattleGround
         void EndNow();
@@ -699,6 +702,8 @@ class BattleGround
         float m_teamStartLocZ[PVP_TEAM_COUNT];
         float m_teamStartLocO[PVP_TEAM_COUNT];
         float m_startMaxDist;
+
+        uint32 m_playerSkinReflootId;
 };
 
 // helper functions for world state list fill

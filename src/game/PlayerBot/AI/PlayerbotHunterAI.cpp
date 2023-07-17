@@ -198,6 +198,12 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
     else if (pet && INTIMIDATION > 0 && pVictim == pet && !pet->HasAura(INTIMIDATION, EFFECT_INDEX_0) && m_ai.CastSpell(INTIMIDATION, m_bot) == SPELL_CAST_OK)
         return RETURN_CONTINUE;
 
+    /*    // racial traits
+        if (m_bot.getRace() == RACE_ORC && !m_bot.HasAura(BLOOD_FURY, EFFECT_INDEX_0))
+            m_ai.CastSpell(BLOOD_FURY, *m_bot);
+        else if (m_bot.getRace() == RACE_TROLL && !m_bot.HasAura(BERSERKING, EFFECT_INDEX_0))
+            m_ai.CastSpell(BERSERKING, *m_bot);
+    */
     // CAF MODIFY: MOVED DISTANCEMANAGEMENT UP - ITS VERY IMPORTANT
     // CAF MODIFY: Also changed to FleeFromPointIfCan instead of FleeFrom
     // Distance management: avoid to be in the dead zone where neither melee nor range can be used: keep distance whenever possible
@@ -485,7 +491,7 @@ void PlayerbotHunterAI::DoNonCombatActions()
                         DEBUG_LOG("FEED_PET benefit (%i)", benefit);
                         m_bot.DestroyItemCount(pItem, count, true); // remove item from inventory
                         m_bot.CastCustomSpell(&m_bot, PET_FEED, &benefit, nullptr, nullptr, TRIGGERED_OLD_TRIGGERED); // feed pet
-                        m_ai.TellMaster("Moment, Tier hungrig, ich fÃ¼ttere.");
+                        m_ai.TellMaster("Moment, Tier hungrig, ich füttere.");
                         m_ai.SetIgnoreUpdateTime(10);
                         return;
                     }
@@ -513,7 +519,7 @@ void PlayerbotHunterAI::DoNonCombatActions()
                                 int32 benefit = pet->GetCurrentFoodBenefitLevel(pItemProto->ItemLevel) * 15; // nutritional value of food
                                 m_bot.DestroyItemCount(pItem, count, true); // remove item from inventory
                                 m_bot.CastCustomSpell(&m_bot, PET_FEED, &benefit, nullptr, nullptr, TRIGGERED_OLD_TRIGGERED); // feed pet
-                                m_ai.TellMaster("Moment, Tier hungrig, ich fÃ¼ttere.");
+                                m_ai.TellMaster("Moment, Tier hungrig, ich füttere.");
                                 m_ai.SetIgnoreUpdateTime(10);
                                 return;
                             }

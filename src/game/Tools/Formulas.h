@@ -134,7 +134,7 @@ namespace MaNGOS
             if (target->IsTotem() || target->IsPet() || target->IsNoXp() || target->IsCritter())
                 return 0;
 
-            uint32 xp_gain = BaseGain(unit->getLevel(), target->getLevel(), GetContentLevelsForMapAndZone(unit->GetMapId(), unit->GetZoneId()));
+            uint32 xp_gain = BaseGain(unit->GetLevel(), target->GetLevel(), GetContentLevelsForMapAndZone(unit->GetMapId(), unit->GetZoneId()));
             if (xp_gain == 0.0f)
                 return 0;
 
@@ -149,11 +149,11 @@ namespace MaNGOS
             xp_gain *= target->GetCreatureInfo()->ExperienceMultiplier;
 
             xp_gain = target->GetModifierXpBasedOnDamageReceived(xp_gain);
-            /*CAF MODIFY START
+			/*CAF MODIFY START
                 Original:
                 return (uint32)(std::nearbyint(xp_gain * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL)));
             */
-            if (unit->getLevel() >= 60) {
+            if (unit->GetLevel() >= 60) {
                 return (uint32)(std::nearbyint(xp_gain));
             }
             else{

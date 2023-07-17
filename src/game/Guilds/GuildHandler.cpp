@@ -17,7 +17,7 @@
  */
 
 #include "Common.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "World/World.h"
 #include "Globals/ObjectMgr.h"
@@ -215,9 +215,27 @@ void WorldSession::HandleGuildAcceptOpcode(WorldPacket& /*recvPacket*/)
 void WorldSession::HandleGuildDeclineOpcode(WorldPacket& /*recvPacket*/)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_GUILD_DECLINE");
+    if (_player->GetGuildId())
+        return;
+
+    if (_player->GetGuildIdInvited() != 0)
+    {
+        if (Guild* guild = sGuildMgr.GetGuildById(_player->GetGuildIdInvited()))
+        {
+            ObjectGuid inviterGuid = guild->GetGuildInviter(_player->GetObjectGuid());
+            if (!inviterGuid.IsEmpty())
+            {
+                if (Player const* pInviter = ObjectAccessor::FindPlayer(inviterGuid))
+                {
+                    WorldPacket data(SMSG_GUILD_DECLINE);
+                    data << _player->GetName();
+                    pInviter->GetSession()->SendPacket(data);
+                }
+            }
+        }
+    }
 
     GetPlayer()->SetGuildIdInvited(0);
-    GetPlayer()->SetInGuild(0);
 }
 
 void WorldSession::HandleGuildInfoOpcode(WorldPacket& /*recvPacket*/)

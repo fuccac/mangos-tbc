@@ -20,7 +20,7 @@
 #define MANGOS_GRIDNOTIFIERSIMPL_H
 
 #include "Grids/GridNotifiers.h"
-#include "WorldPacket.h"
+#include "Server/WorldPacket.h"
 #include "Entities/Player.h"
 #include "AI/BaseAI/UnitAI.h"
 #include "Spells/SpellAuras.h"
@@ -181,6 +181,15 @@ inline void MaNGOS::CreatureVisitObjectsNotifier::Visit(CreatureMapType& m)
     }
 }
 
+inline MaNGOS::DynamicObjectUpdater::DynamicObjectUpdater(DynamicObject& dynobject, Unit* caster, bool positive) : i_dynobject(dynobject), i_positive(positive),
+    i_script(i_dynobject.GetTarget() == TARGET_ENUM_UNITS_SCRIPT_AOE_AT_DEST_LOC || i_dynobject.GetTarget() == TARGET_ENUM_UNITS_SCRIPT_AOE_AT_DYNOBJ_LOC)
+{
+    i_check = caster;
+    Unit* owner = i_check->GetOwner();
+    if (owner)
+        i_check = owner;
+}
+
 inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
 {
     if (!target->IsAlive() || target->IsTaxiFlying())
@@ -189,7 +198,11 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
     if (target->GetTypeId() == TYPEID_UNIT && ((Creature*)target)->IsTotem())
         return;
 
-    if (i_dynobject.GetDistance(target, true, DIST_CALC_COMBAT_REACH) > i_dynobject.GetRadius())
+    Unit* caster = i_dynobject.GetCaster();
+    float radius = i_dynobject.GetRadius();
+    if (caster->IsPlayerControlled() && !target->IsPlayerControlled())
+        radius += target->GetCombatReach();
+    if (i_dynobject.GetDistance(target, true, DIST_CALC_NONE) > radius * radius)
         return;
 
     // Evade target
@@ -197,12 +210,11 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
         return;
 
     // Check player targets and remove if in GM mode or GM invisibility (for not self casting case)
-    if (target->GetTypeId() == TYPEID_PLAYER && target != i_check && (((Player*) target)->IsGameMaster() || ((Player*)target)->GetVisibility() == VISIBILITY_OFF))
+    if (target->GetTypeId() == TYPEID_PLAYER && target != i_check && (((Player*)target)->IsGameMaster() || ((Player*)target)->GetVisibility() == VISIBILITY_OFF))
         return;
 
     SpellEntry const* spellInfo = sSpellTemplate.LookupEntry<SpellEntry>(i_dynobject.GetSpellId());
-    SpellEffectIndex eff_index  = i_dynobject.GetEffIndex();
-    Unit* caster = i_dynobject.GetCaster();
+    SpellEffectIndex eff_index = i_dynobject.GetEffIndex();
 
     SQLMultiStorage::SQLMSIteratorBounds<SpellTargetEntry> bounds = sSpellScriptTargetStorage.getBounds<SpellTargetEntry>(spellInfo->Id);
     if (bounds.first != bounds.second)
@@ -232,7 +244,7 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
             return;
     }
     // This condition is only needed due to missing neutral spell type
-    else if(i_dynobject.GetTarget() != TARGET_ENUM_UNITS_SCRIPT_AOE_AT_DEST_LOC)
+    else if (!i_script)
     {
         // for player casts use less strict negative and more stricted positive targeting
         if (i_positive)
@@ -247,14 +259,21 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
         }
     }
 
-    if (spellInfo->HasAttribute(SPELL_ATTR_EX3_TARGET_ONLY_PLAYER) && target->GetTypeId() != TYPEID_PLAYER)
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX3_ONLY_ON_PLAYER) && target->GetTypeId() != TYPEID_PLAYER)
+        return;
+
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX5_NOT_ON_PLAYER) && target->GetTypeId() == TYPEID_PLAYER)
+        return;
+
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX5_NOT_ON_PLAYER_CONTROLLED_NPC) && target->IsPlayerControlled() && target->GetTypeId() != TYPEID_PLAYER)
         return;
 
     // Check target immune to spell or aura
-    if (target->IsImmuneToSpell(spellInfo, false, (1 << eff_index)) || target->IsImmuneToSpellEffect(spellInfo, eff_index, false))
-        return;
+    if (!spellInfo->HasAttribute(SPELL_ATTR_NO_IMMUNITIES)) // confirmed 40657 - Ancient Flames goes through immunity
+        if (target->IsImmuneToSpell(spellInfo, false, (1 << eff_index), caster) || target->IsImmuneToSpellEffect(spellInfo, eff_index, false))
+            return;
 
-    if (!spellInfo->HasAttribute(SPELL_ATTR_EX2_IGNORE_LOS) && !i_dynobject.IsWithinLOSInMap(target))
+    if (!spellInfo->HasAttribute(SPELL_ATTR_EX2_IGNORE_LINE_OF_SIGHT) && !i_dynobject.IsWithinLOSInMap(target))
         return;
 
     // Apply PersistentAreaAura on target
@@ -280,6 +299,7 @@ inline void MaNGOS::DynamicObjectUpdater::VisitHelper(Unit* target)
     {
         holder = CreateSpellAuraHolder(spellInfo, target, caster);
         PersistentAreaAura* Aur = new PersistentAreaAura(spellInfo, eff_index, &i_dynobject.GetDamage(), &i_dynobject.GetBasePoints(), holder, target, caster);
+        holder->SetAuraDuration(i_dynobject.GetDuration());
         holder->AddAura(Aur, eff_index);
         if (!target->AddSpellAuraHolder(holder))
             delete holder;

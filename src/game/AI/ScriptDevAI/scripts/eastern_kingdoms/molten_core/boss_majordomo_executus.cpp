@@ -30,8 +30,8 @@ enum
 {
     // Majordomo Executus Encounter
     SAY_AGGRO                = -1409003,
-    SAY_SLAY_1               = -1409005,
-    SAY_SLAY_2               = -1409006,
+    SAY_SLAY_1               = 9425,
+    SAY_SLAY_SOUND           = 8036,
     SAY_LAST_ADD             = -1409019,                    // When only one add remaining
     SAY_DEFEAT_1             = -1409007,
     SAY_DEFEAT_2             = -1409020,
@@ -92,6 +92,8 @@ struct boss_majordomoAI : public CombatAI
         AddCombatAction(MAJORDOMO_AEGIS, 5000u);
         AddCustomAction(MAJORDOMO_OUTRO, true, [&]() { HandleOutro(); });
         SetDeathPrevention(true);
+        AddOnKillText(SAY_SLAY_1);
+        AddOnKillSound(SAY_SLAY_SOUND);
         Reset();
     }
 
@@ -107,14 +109,6 @@ struct boss_majordomoAI : public CombatAI
     {
         m_addsKilled = 0;
         m_speechStage = 0;
-    }
-
-    void KilledUnit(Unit* /*victim*/) override
-    {
-        if (urand(0, 4))
-            return;
-
-        DoScriptText((urand(0, 1) ? SAY_SLAY_1 : SAY_SLAY_2), m_creature);
     }
 
     void Aggro(Unit* who) override

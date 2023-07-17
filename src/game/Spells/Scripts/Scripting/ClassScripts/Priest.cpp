@@ -18,6 +18,7 @@
 
 #include "Spells/Scripts/SpellScript.h"
 #include "Spells/SpellAuras.h"
+#include "Spells/SpellMgr.h"
 
 struct SpiritOfRedemptionHeal : public SpellScript
 {
@@ -85,7 +86,8 @@ struct ShadowWordDeath : public SpellScript
 {
     void OnHit(Spell* spell, SpellMissInfo /*missInfo*/) const override
     {
-        int32 swdDamage = spell->GetTotalTargetDamage();
+        // ignores absorb - has to respect stuff like mitigation and partial resist
+        int32 swdDamage = spell->GetTotalTargetDamage() + spell->GetTotalTargetAbsorb();
         spell->GetCaster()->CastCustomSpell(nullptr, 32409, &swdDamage, nullptr, nullptr, TRIGGERED_OLD_TRIGGERED);
     }
 };
@@ -94,9 +96,34 @@ struct Blackout : public AuraScript
 {
     bool OnCheckProc(Aura* /*aura*/, ProcExecutionData& data) const override
     {
-        if (!data.damage || data.isHeal)
+        if (data.isHeal || (!data.damage && data.spellInfo && !IsSpellHaveAura(data.spellInfo, SPELL_AURA_PERIODIC_DAMAGE)))
             return false;
         return true;
+    }
+};
+
+struct Shadowguard : public SpellScript
+{
+    void OnEffectExecute(Spell* spell, SpellEffectIndex /*effIdx*/) const override
+    {
+        if (!spell->GetTriggeredByAuraSpellInfo())
+            return;
+
+        uint32 spellId = 0;
+        switch (spell->GetTriggeredByAuraSpellInfo()->Id)
+        {
+            default:
+            case 18137: spellId = 28377; break;   // Rank 1
+            case 19308: spellId = 28378; break;   // Rank 2
+            case 19309: spellId = 28379; break;   // Rank 3
+            case 19310: spellId = 28380; break;   // Rank 4
+            case 19311: spellId = 28381; break;   // Rank 5
+            case 19312: spellId = 28382; break;   // Rank 6
+            case 25477: spellId = 28385; break;   // Rank 7
+        }
+
+        if (spellId)
+            spell->GetCaster()->CastSpell(spell->GetUnitTarget(), spellId, TRIGGERED_IGNORE_GCD | TRIGGERED_IGNORE_CURRENT_CASTED_SPELL);
     }
 };
 
@@ -114,12 +141,61 @@ struct Shadowfiend : public SpellScript
     }
 };
 
+struct PrayerOfMending : public SpellScript
+{
+    // not needed in wotlk
+    SpellCastResult OnCheckCast(Spell* spell, bool strict) const override
+    {
+        Unit* target = spell->m_targets.getUnitTarget();
+        if (!target)
+            return SPELL_FAILED_BAD_TARGETS;
+        if (strict)
+        {
+            if (Aura* aura = target->GetAura(41635, EFFECT_INDEX_0))
+            {
+                uint32 value = 0;
+                value = spell->CalculateSpellEffectValue(EFFECT_INDEX_0, target, true, false);
+                value = spell->GetCaster()->SpellHealingBonusDone(target, sSpellTemplate.LookupEntry<SpellEntry>(41635), value, HEAL);
+                if (aura->GetModifier()->m_amount > (int32)value)
+                    return SPELL_FAILED_AURA_BOUNCED;
+            }
+        }
+        return SPELL_CAST_OK;
+    }
+
+    void OnEffectExecute(Spell* spell, SpellEffectIndex effIdx) const override
+    {
+        if (effIdx != EFFECT_INDEX_0)
+            return;
+        uint32 value = spell->GetDamage();
+        value = spell->GetCaster()->SpellHealingBonusDone(spell->GetUnitTarget(), sSpellTemplate.LookupEntry<SpellEntry>(41635), value, HEAL);
+        spell->SetDamage(value);
+    }
+};
+
+enum
+{
+    SPELL_PAIN_SUPPRESSION_THREAT_REDUCTION = 44416,
+};
+
+struct PainSuppression : public AuraScript
+{
+    void OnApply(Aura* aura, bool apply) const override
+    {
+        if (apply)
+            aura->GetTarget()->CastSpell(aura->GetTarget(), SPELL_PAIN_SUPPRESSION_THREAT_REDUCTION, TRIGGERED_OLD_TRIGGERED, nullptr, aura, aura->GetCasterGuid());
+    }
+};
+
 void LoadPriestScripts()
 {
     RegisterSpellScript<ConsumeMagic>("spell_consume_magic");
     RegisterSpellScript<PowerInfusion>("spell_power_infusion");
     RegisterSpellScript<ShadowWordDeath>("spell_shadow_word_death");
     RegisterSpellScript<SpiritOfRedemptionHeal>("spell_spirit_of_redemption_heal");
-    RegisterAuraScript<Blackout>("spell_blackout");
+    RegisterSpellScript<Blackout>("spell_blackout");
+    RegisterSpellScript<Shadowguard>("spell_shadowguard");
+    RegisterSpellScript<PrayerOfMending>("spell_prayer_of_mending");
+    RegisterSpellScript<PainSuppression>("spell_pain_suppression");
     RegisterSpellScript<Shadowfiend>("spell_shadowfiend");
 }

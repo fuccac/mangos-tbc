@@ -59,6 +59,7 @@ struct GroupQueueInfo                                       // stores informatio
     uint32  joinTime;                                       // time when group was added
     uint32  removeInviteTime;                               // time when we will remove invite for players in group
     uint32  isInvitedToBgInstanceGuid;                      // was invited to certain BG
+    uint32  desiredInstanceId;                              // queued for this instance specifically
     uint32  arenaTeamRating;                                // if rated match, inited to the rating of the team
     uint32  opponentsTeamRating;                            // for rated arena matches
 };
@@ -86,7 +87,7 @@ class BattleGroundQueue
         bool CheckPremadeMatch(BattleGroundBracketId /*bracketId*/, uint32 /*minPlayersPerTeam*/, uint32 /*maxPlayersPerTeam*/);
         bool CheckNormalMatch(BattleGround* /*bgTemplate*/, BattleGroundBracketId /*bracketId*/, uint32 /*minPlayers*/, uint32 /*maxPlayers*/);
         bool CheckSkirmishForSameFaction(BattleGroundBracketId /*bracketId*/, uint32 /*minPlayersPerTeam*/);
-        GroupQueueInfo* AddGroup(Player* /*leader*/, Group* /*group*/, BattleGroundTypeId /*bgTypeId*/, BattleGroundBracketId /*bracketEntry*/, ArenaType /*arenaType*/, bool /*isRated*/, bool /*isPremade*/, uint32 /*arenaRating*/, uint32 arenaTeamId = 0);
+        GroupQueueInfo* AddGroup(Player* /*leader*/, Group* /*group*/, BattleGroundTypeId /*bgTypeId*/, BattleGroundBracketId /*bracketEntry*/, ArenaType /*arenaType*/, bool /*isRated*/, bool /*isPremade*/, uint32 /*instanceId*/, uint32 /*arenaRating*/, uint32 arenaTeamId = 0);
         void RemovePlayer(ObjectGuid /*guid*/, bool /*decreaseInvitedCount*/);
         bool IsPlayerInvited(ObjectGuid /*playerGuid*/, const uint32 /*bgInstanceGuid*/, const uint32 /*removeTime*/);
         bool GetPlayerGroupInfoData(ObjectGuid /*guid*/, GroupQueueInfo* /*groupInfo*/);
@@ -121,7 +122,7 @@ class BattleGroundQueue
             public:
                 SelectionPool() : playerCount(0) {}
                 void Init();
-                bool AddGroup(GroupQueueInfo* ginfo, uint32 desiredCount);
+                bool AddGroup(GroupQueueInfo* ginfo, uint32 desiredCount, uint32 bgInstanceId);
                 bool KickGroup(uint32 size);
                 uint32 GetPlayerCount() const {return playerCount;}
                 GroupsQueueType selectedGroups;
@@ -213,7 +214,7 @@ class BattleGroundMgr
         BattleGround* GetBattleGroundTemplate(BattleGroundTypeId /*bgTypeId*/);
         BattleGround* CreateNewBattleGround(BattleGroundTypeId /*bgTypeId*/, BattleGroundBracketId /*bracketEntry*/, ArenaType /*arenaType*/, bool /*isRated*/);
 
-        uint32 CreateBattleGround(BattleGroundTypeId /*bgTypeId*/, bool /*isArena*/, uint32 /*minPlayersPerTeam*/, uint32 /*maxPlayersPerTeam*/, uint32 /*levelMin*/, uint32 /*levelMax*/, char const* /*battleGroundName*/, uint32 /*mapId*/, float /*team1StartLocX*/, float /*team1StartLocY*/, float /*team1StartLocZ*/, float /*team1StartLocO*/, float /*team2StartLocX*/, float /*team2StartLocY*/, float /*team2StartLocZ*/, float /*team2StartLocO*/, float /*startMaxDist*/);
+        uint32 CreateBattleGround(BattleGroundTypeId /*bgTypeId*/, bool /*isArena*/, uint32 /*minPlayersPerTeam*/, uint32 /*maxPlayersPerTeam*/, uint32 /*levelMin*/, uint32 /*levelMax*/, char const* /*battleGroundName*/, uint32 /*mapId*/, float /*team1StartLocX*/, float /*team1StartLocY*/, float /*team1StartLocZ*/, float /*team1StartLocO*/, float /*team2StartLocX*/, float /*team2StartLocY*/, float /*team2StartLocZ*/, float /*team2StartLocO*/, float /*startMaxDist*/, uint32 /*playerSkinReflootId*/);
 
         void AddBattleGround(uint32 instanceId, BattleGroundTypeId bgTypeId, BattleGround* bg) { m_battleGrounds[bgTypeId][instanceId] = bg; };
         void RemoveBattleGround(uint32 instanceId, BattleGroundTypeId bgTypeId) { m_battleGrounds[bgTypeId].erase(instanceId); }
@@ -258,18 +259,18 @@ class BattleGroundMgr
         }
 
         void LoadBattleEventIndexes();
-        const BattleGroundEventIdx GetCreatureEventIndex(uint32 dbTableGuidLow) const
+        const BattleGroundEventIdx GetCreatureEventIndex(uint32 dbGuid) const
         {
-            CreatureBattleEventIndexesMap::const_iterator itr = m_creatureBattleEventIndexMap.find(dbTableGuidLow);
+            CreatureBattleEventIndexesMap::const_iterator itr = m_creatureBattleEventIndexMap.find(dbGuid);
             if (itr != m_creatureBattleEventIndexMap.end())
                 return itr->second;
 
             return m_creatureBattleEventIndexMap.find(static_cast<uint32>(-1))->second;
         }
 
-        const BattleGroundEventIdx GetGameObjectEventIndex(uint32 dbTableGuidLow) const
+        const BattleGroundEventIdx GetGameObjectEventIndex(uint32 dbGuid) const
         {
-            GameObjectBattleEventIndexesMap::const_iterator itr = m_gameObjectBattleEventIndexMap.find(dbTableGuidLow);
+            GameObjectBattleEventIndexesMap::const_iterator itr = m_gameObjectBattleEventIndexMap.find(dbGuid);
             if (itr != m_gameObjectBattleEventIndexMap.end())
                 return itr->second;
 
@@ -289,6 +290,7 @@ class BattleGroundMgr
         static BattleGroundTypeId WeekendHolidayIdToBgType(HolidayIds /*holiday*/);
         static bool IsBgWeekend(BattleGroundTypeId /*bgTypeId*/);
 
+        std::set<uint32> const& GetUsedRefLootIds() const { return m_usedRefloot; }
     private:
         std::mutex schedulerLock;
         BattleMastersMap m_battleMastersMap;
@@ -305,6 +307,7 @@ class BattleGroundMgr
         uint32 m_autoDistributionTimeChecker;
         bool   m_arenaTesting;
         bool   m_testing;
+        std::set<uint32> m_usedRefloot;
 };
 
 #define sBattleGroundMgr MaNGOS::Singleton<BattleGroundMgr>::Instance()
