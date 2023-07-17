@@ -7796,7 +7796,6 @@ void Player::CastItemCombatSpell(Unit* Target, WeaponAttackType attType, bool sp
 
 void Player::CastItemUseSpell(Item* item, SpellCastTargets& targets, uint8 cast_count, uint8 spell_index)
 {
-    
     ItemPrototype const* proto = item->GetProto();
     // special learning case
     if (proto->Spells[0].SpellId == SPELL_ID_GENERIC_LEARN)
@@ -7822,7 +7821,6 @@ void Player::CastItemUseSpell(Item* item, SpellCastTargets& targets, uint8 cast_
         return;
     }
     
-
     // use triggered flag only for items with many spell casts and for not first cast
     int count = 0;
 
