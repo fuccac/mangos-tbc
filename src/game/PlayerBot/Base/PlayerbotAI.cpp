@@ -2045,9 +2045,14 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 if (!inviter)
                     return;
 
+
                 WorldPacket p;
+                
+            
+                
                 if (!canObeyCommandFrom(*inviter))
                 {
+                    
                     std::string buf = "I can't accept your invite unless you first invite my master ";
                     buf += GetMaster()->GetName();
                     buf += ".";
@@ -2082,6 +2087,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
         // also sends list of tradable items bot can trade if bot is allowed to obey commands from
         case SMSG_TRADE_STATUS:
         {
+            bool traderNotMaster = false;
             if (m_bot->GetTrader() == nullptr)
                 break;
 
@@ -2106,7 +2112,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 if (!canObeyCommandFrom(*(m_bot->GetTrader())))
                 {
                     // TODO: Really? What if I give a bot all my junk so it's inventory is full when a nice green/blue/purple comes along?
-                    SendWhisper("I werd handeln mit dir, aber waßt eh, I sag mein Chef schon was du da nimmst!", *(m_bot->GetTrader()));
+                    traderNotMaster = true;
                 }
 
                 // list out items
@@ -2117,8 +2123,8 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 uint8 countTradeable = 0;
                 uint8 countNonTradeable = 0;
 
-                outT << "Tradeable:" << "\n";
-                outNT << "Non-tradeable:" << "\n";
+                outT << "Handelbar:" << "\n";
+                outNT << "Nicht Handelbar:" << "\n";
                 // list out items in main backpack
                 for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; slot++)
                 {
@@ -2145,8 +2151,10 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 if (countTradeable > 0)
                     out << outT.str();
                 if (countNonTradeable > 0)
-                    out << "\r" << outNT.str();
+                    out << outNT.str();
+                
                 SendWhisper(out.str().c_str(), *(m_bot->GetTrader()));
+
 
                 // list out items in other removable backpacks
                 for (uint8 bag = INVENTORY_SLOT_BAG_START; bag < INVENTORY_SLOT_BAG_END; ++bag)
@@ -2158,8 +2166,8 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                         countNonTradeable = 0;
                         std::ostringstream outbagT;
                         std::ostringstream outbagNT;
-                        outbagT << "Tradeable:\n";
-                        outbagNT << "Non-tradeable:\n";
+                        outbagT << "Handelbar:\n";
+                        outbagNT << "Nicht Handelbar:\n";
 
                         for (uint8 slot = 0; slot < pBag->GetBagSize(); ++slot)
                         {
@@ -2192,7 +2200,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                         if (countTradeable > 0)
                             outbag << outbagT.str();
                         if (countNonTradeable > 0)
-                            outbag << "\r" << outbagNT.str();
+                            outbag << outbagNT.str();
                         SendWhisper(outbag.str().c_str(), *(m_bot->GetTrader()));
                     }
                 }
@@ -2205,6 +2213,8 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 out.str("");
                 out << "I have |cff00ff00" << Cash(copper) << "|r";
                 SendWhisper(out.str().c_str(), *(m_bot->GetTrader()));
+                if(traderNotMaster)
+                     SendWhisper("I werd handeln mit dir, aber waßt eh, I sag mein Chef schon was du da nimmst!", *(m_bot->GetTrader()));
             }
             return;
         }
@@ -7535,8 +7545,8 @@ void PlayerbotAI::BankBalance()
 {
     std::ostringstream report;
 
-    report << "In meiner Bank\n ";
-    report << "Meine Gegenstandsslots: ";
+    report << "In meiner Bank\n";
+    report << "Meine Gegenstandsslots:\n";
 
     for (uint8 slot = BANK_SLOT_ITEM_START; slot < BANK_SLOT_ITEM_END; ++slot)
     {
